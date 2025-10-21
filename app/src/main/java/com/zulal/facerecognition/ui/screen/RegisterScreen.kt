@@ -20,7 +20,7 @@ fun RegisterScreen(
 
     val lastEmbedding = faceViewModel.lastEmbedding // 🔹 Kamera tarafından güncellenen embedding
 //`lastEmbedding` | ViewModel'den son bulunan yüz |
-//| `faceViewModel.lastEmbedding` | CameraScreen'de algılanan yüz ******
+// `faceViewModel.lastEmbedding` | CameraScreen'de algılanan yüz ******
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(

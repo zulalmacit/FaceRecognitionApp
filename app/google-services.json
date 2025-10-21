@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1094412840663",
+    "project_id": "facerecognitionapp-dbda0",
+    "storage_bucket": "facerecognitionapp-dbda0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1094412840663:android:29f63b29007a5e005a0a92",
+        "android_client_info": {
+          "package_name": "com.zulal.facerecognition"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD0Bid_7bkiodFRxP6QQtpZTQoeY-uDyxc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
