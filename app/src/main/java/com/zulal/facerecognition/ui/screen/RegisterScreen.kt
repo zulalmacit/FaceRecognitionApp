@@ -7,6 +7,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.google.firebase.Firebase
+import com.google.firebase.firestore.FirebaseFirestore
 import com.zulal.facerecognition.viewmodel.FaceViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,8 +50,22 @@ fun RegisterScreen(
             Button(
                 onClick = {
                     if (userName.isNotBlank() && lastEmbedding != null) {
+                        // local kayıt için
                         faceViewModel.insertFace(userName, lastEmbedding)
-                        message = "$userName için yüz kaydedildi!"
+                        //firebase kaydı
+                        val db = FirebaseFirestore.getInstance()
+                        val data = hashMapOf(
+                            "userName" to userName,
+                            "embedding" to lastEmbedding.toList()
+                        )
+
+                        db.collection("registered_faces")
+                            .add(data)
+                            .addOnSuccessListener { message = " $userName Firestore'a kaydedildi" }
+                            .addOnFailureListener {
+                                message = "Hata: ${it.message} "
+                            }
+
                     } else {
                         message = "️ isim girin ve yüzünüz algılansın"
                     }
