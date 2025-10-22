@@ -91,4 +91,6 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-storage")
+
+    implementation("com.google.firebase:firebase-ml-model-interpreter:22.0.3")
 }
