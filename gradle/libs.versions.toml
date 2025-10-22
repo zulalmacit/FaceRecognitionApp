@@ -17,6 +17,7 @@ navigationComposeAndroid = "2.9.5"
 playServicesMlkitFaceDetection = "17.1.0"
 roomCommonJvm = "2.8.2"
 roomRuntimeJvm = "2.8.2"
+ui = "1.9.3"
 
 [libraries]
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation" }
@@ -45,6 +46,7 @@ androidx-navigation-compose-android = { group = "androidx.navigation", name = "n
 play-services-mlkit-face-detection = { group = "com.google.android.gms", name = "play-services-mlkit-face-detection", version.ref = "playServicesMlkitFaceDetection" }
 androidx-room-common-jvm = { group = "androidx.room", name = "room-common-jvm", version.ref = "roomCommonJvm" }
 androidx-room-runtime-jvm = { group = "androidx.room", name = "room-runtime-jvm", version.ref = "roomRuntimeJvm" }
+androidx-compose-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
