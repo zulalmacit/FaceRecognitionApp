@@ -17,6 +17,7 @@ import com.zulal.facerecognition.data.repository.RoomFaceRepository
 import com.zulal.facerecognition.ui.screen.AllUsersScreen
 import com.zulal.facerecognition.ui.screen.CameraScreen
 import com.zulal.facerecognition.ui.screen.RegisterScreen
+import com.zulal.facerecognition.ui.screen.SplashScreen
 import com.zulal.facerecognition.viewmodel.FaceViewModel
 import com.zulal.facerecognition.viewmodel.FaceViewModelFactory
 
@@ -49,8 +50,11 @@ fun AppNavigator() {
 
     NavHost(
         navController = navController,
-        startDestination = "camera"
+        startDestination = "splash"
     ) {
+        composable("splash") {
+            SplashScreen(navController = navController)
+        }
         composable("camera") {
             CameraScreen(navController = navController, faceViewModel = faceViewModel)
         }
