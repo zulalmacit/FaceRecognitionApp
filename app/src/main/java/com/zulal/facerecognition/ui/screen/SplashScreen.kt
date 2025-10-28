@@ -16,7 +16,7 @@ import kotlinx.coroutines.delay
 fun SplashScreen(navController: NavController) {
     LaunchedEffect(Unit) {
         delay(2000)
-        navController.navigate("camera"){
+        navController.navigate("login"){
             popUpTo("splash"){ //Şu ekrana kadar olan geçmişi temizle, Splashı da sil
                 inclusive = true
             }
