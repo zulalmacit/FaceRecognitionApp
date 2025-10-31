@@ -1,5 +1,6 @@
 package com.zulal.facerecognition.ui.screen
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,19 +18,20 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.zulal.facerecognition.viewmodel.FaceViewModel
-
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.zulal.facerecognition.viewmodel.AuthViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
-    navController: NavController,
-    faceViewModel: FaceViewModel
+    navController: NavController
 ) {
-    var selectedRole by remember { mutableStateOf(" ") }
+    val authViewModel: AuthViewModel = viewModel()
+
+    var selectedRole by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
 
-    // Arka plan degrade
     val gradient = Brush.verticalGradient(
         colors = listOf(Color(0xFF1A1450), Color(0xFF4329A6))
     )
@@ -46,7 +48,6 @@ fun LoginScreen(
                 .padding(top = 80.dp, start = 24.dp, end = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Beyaz kart kısmı
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -68,7 +69,6 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Role Selection
                     Row(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
@@ -80,16 +80,10 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Email Field
                     OutlinedTextField(
                         value = email,
                         onValueChange = { email = it },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Email,
-                                contentDescription = "Email"
-                            )
-                        },
+                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = "Email") },
                         label = { Text("Enter your mail") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
@@ -97,37 +91,47 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Password Field
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = "Password"
-                            )
-                        },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Password") },
                         label = { Text("Password") },
                         visualTransformation = PasswordVisualTransformation(),
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    TextButton(
-                        onClick = {  },
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Text("Forgot Password?", color = Color(0xFF1A1450))
-                    }
-
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Login Button
                     Button(
                         onClick = {
-                            navController.navigate("camera")
+                            if (email.isNotBlank() && password.isNotBlank()) {
+                                authViewModel.login(email.trim(), password.trim()) { success, error ->
+                                    if (success) {
+                                        val uid = authViewModel.currentUser()?.uid
+                                        if (uid == null) {
+                                            message = "User not found"
+                                            return@login
+                                        }
+                                        authViewModel.checkUserProfile(uid) { exists ->
+                                            if (exists) {
+                                                navController.navigate("courses") {
+                                                    popUpTo("login") { inclusive = true }
+                                                }
+                                            } else {
+                                                navController.navigate("register") {
+                                                    popUpTo("login") { inclusive = true }
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        message = error ?: "Login failed"
+                                    }
+                                }
+
+                            } else {
+                                message = "Please enter email and password."
+                            }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -135,26 +139,22 @@ fun LoginScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF8B400)),
                         shape = RoundedCornerShape(25.dp)
                     ) {
-                        Text(
-                            text = "Login",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = Color.White
-                        )
+                        Text("Login", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
+                    if (message.isNotEmpty()) {
+                        Text(message, color = Color(0xFF1A1450))
 
-                    OutlinedButton(
-                        onClick = {  },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        border = ButtonDefaults.outlinedButtonBorder
-                    ) {
-                        Text("Sign in with Google")
+                        //REGISTER OPTION IF LOGIN FAILS
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Böyle bir kullanıcı yok mu?", color = Color.Gray, fontSize = 14.sp)
+                        TextButton(onClick = {
+                            navController.navigate("register")
+                        }) {
+                            Text("Kayıt Ol", fontWeight = FontWeight.Bold, color = Color(0xFF1A1450))
+                        }
                     }
                 }
             }
@@ -163,17 +163,32 @@ fun LoginScreen(
 }
 
 @Composable
-fun RoleOption(role: String, selectedRole: String, onSelected: (String) -> Unit) {
+fun RoleOption(
+    role: String,
+    selectedRole: String,
+    onSelected: (String) -> Unit
+) {
     val isSelected = role == selectedRole
+
     OutlinedButton(
         onClick = { onSelected(role) },
-        shape = RoundedCornerShape(50),
+        modifier = Modifier.height(42.dp),
         colors = if (isSelected)
-            ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF1A1450), contentColor = Color.White)
+            ButtonDefaults.outlinedButtonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White
+            )
         else
-            ButtonDefaults.outlinedButtonColors(containerColor = Color.Transparent, contentColor = Color(0xFF1A1450)),
-        border = if (isSelected) null else ButtonDefaults.outlinedButtonBorder
+            ButtonDefaults.outlinedButtonColors(
+                containerColor = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.primary
+            ),
+        border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+        shape = RoundedCornerShape(50)
     ) {
         Text(role)
     }
 }
+
+
+

@@ -16,6 +16,7 @@ import com.zulal.facerecognition.data.db.FaceDatabase
 import com.zulal.facerecognition.data.repository.RoomFaceRepository
 import com.zulal.facerecognition.ui.screen.AllUsersScreen
 import com.zulal.facerecognition.ui.screen.CameraScreen
+import com.zulal.facerecognition.ui.screen.CoursesScreen
 import com.zulal.facerecognition.ui.screen.LoginScreen
 import com.zulal.facerecognition.ui.screen.RegisterScreen
 import com.zulal.facerecognition.ui.screen.SplashScreen
@@ -38,13 +39,11 @@ class MainActivity : ComponentActivity() {
 fun AppNavigator() {
     val navController: NavHostController = rememberNavController()
 
-    // Room veritabanı instance
     val context = LocalContext.current
     val database = FaceDatabase.getDatabase(context)
     val dao = database.faceDao()
     val repository = RoomFaceRepository(dao)
 
-    // ViewModel’i factory ile oluştur
     val faceViewModel: FaceViewModel = viewModel(
         factory = FaceViewModelFactory(repository)
     )
@@ -53,21 +52,13 @@ fun AppNavigator() {
         navController = navController,
         startDestination = "splash"
     ) {
-        composable("splash") {
-            SplashScreen(navController = navController)
-        }
-        composable("login") {
-            LoginScreen(navController = navController, faceViewModel = faceViewModel)
-        }
-        composable("camera") {
-            CameraScreen(navController = navController, faceViewModel = faceViewModel)
-        }
-        composable("register") {
-            RegisterScreen(navController = navController, faceViewModel = faceViewModel)
-        }
-        composable("all_users") {
-            AllUsersScreen(navController = navController, faceViewModel = faceViewModel)
-        }
-
+        composable("splash") { SplashScreen(navController) }
+        composable("login") { LoginScreen(navController) }
+        composable("camera") { CameraScreen(navController, faceViewModel) }
+        composable("register") { RegisterScreen(navController) }
+        composable("courses") { CoursesScreen(navController, faceViewModel) }
+        composable("all_users") { AllUsersScreen(navController, faceViewModel) }
     }
 }
+
+

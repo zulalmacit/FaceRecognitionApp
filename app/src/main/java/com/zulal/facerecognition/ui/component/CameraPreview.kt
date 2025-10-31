@@ -22,7 +22,8 @@ import com.zulal.facerecognition.viewmodel.FaceViewModel
 fun CameraPreview(
     modifier: Modifier = Modifier,
     lifecycleOwner: LifecycleOwner,
-    faceViewModel: FaceViewModel
+    faceViewModel: FaceViewModel,
+    onFaceEmbeddingDetected: (FloatArray) -> Unit
 ) {
     val context = LocalContext.current
 
@@ -58,11 +59,10 @@ fun CameraPreview(
                     analysisUseCase.setAnalyzer(
                         ContextCompat.getMainExecutor(ctx)
                     ) { imageProxy ->
-                        processImageProxy(detector, imageProxy, faceViewModel)
+                        processImageProxy(detector, imageProxy, faceViewModel, onFaceEmbeddingDetected)
                     }
 
                     val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
-
                     cameraProvider.unbindAll()
                     cameraProvider.bindToLifecycle(
                         lifecycleOwner,
@@ -80,30 +80,26 @@ fun CameraPreview(
     )
 }
 
-@SuppressLint("UnsafeOptInUsageError") //uyarıyı yok say
+@SuppressLint("UnsafeOptInUsageError") //Android lint uyarısını kapat
 private fun processImageProxy(
     detector: com.google.mlkit.vision.face.FaceDetector,
-    imageProxy: ImageProxy, //kameradan gelen frame
-    faceViewModel: FaceViewModel // depolamak için
+    imageProxy: ImageProxy,
+    faceViewModel: FaceViewModel,
+    onFaceEmbeddingDetected: (FloatArray) -> Unit
 ) {
-    val mediaImage = imageProxy.image // framei görüntüye çevirir
+    val mediaImage = imageProxy.image
     if (mediaImage != null) {
         val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
 
-        detector.process(image) //yüz ara
-            .addOnSuccessListener { faces -> //başarılı olursa çalış
+        detector.process(image)
+            .addOnSuccessListener { faces ->
                 if (faces.isNotEmpty()) {
                     Log.d("FaceDetection", "Yüz bulundu! Sayı: ${faces.size}")
 
-                    // Dummy embedding (şimdilik sabit değer)
                     val dummyEmbedding = FloatArray(128) { 0.5f }
-
-                    // ViewModel’e gönder
                     faceViewModel.updateLastEmbedding(dummyEmbedding)
+                    onFaceEmbeddingDetected(dummyEmbedding)
                 }
-            }
-            .addOnFailureListener { e ->
-                Log.e("FaceDetection", "Hata: ", e)
             }
             .addOnCompleteListener {
                 imageProxy.close()

@@ -45,6 +45,8 @@ android {
 dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.espresso.core)
+    implementation(libs.androidx.compose.ui.text)
     kapt("androidx.room:room-compiler:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
 
@@ -91,6 +93,7 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-storage")
+
 
     implementation("com.google.firebase:firebase-ml-model-interpreter:22.0.3")
 }

@@ -9,19 +9,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.zulal.facerecognition.R
+import com.zulal.facerecognition.viewmodel.AuthViewModel
 import kotlinx.coroutines.delay
 @Composable
 fun SplashScreen(navController: NavController) {
+    val authViewModel: AuthViewModel = viewModel()
+
     LaunchedEffect(Unit) {
-        delay(2000)
-        navController.navigate("login"){
-            popUpTo("splash"){ //Şu ekrana kadar olan geçmişi temizle, Splashı da sil
-                inclusive = true
+        if (authViewModel.currentUser() != null) {
+            navController.navigate("courses") {
+                popUpTo("splash") { inclusive = true }
+            }
+        } else {
+            navController.navigate("login") {
+                popUpTo("splash") { inclusive = true }
             }
         }
     }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
