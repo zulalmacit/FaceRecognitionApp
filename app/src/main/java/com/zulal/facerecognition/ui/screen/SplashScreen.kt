@@ -35,20 +35,21 @@ fun SplashScreen(navController: NavController) {
         authViewModel.getUserRole(uid) { role ->
             when (role) {
                 "Student" -> {
-                    navController.navigate("camera") {
+                    navController.navigate("courses") {
                         popUpTo("splash") { inclusive = true }
                     }
                 }
                 "Professor" -> {
-                    navController.navigate("professorHome") {
+                    navController.navigate("adminhome") {
                         popUpTo("splash") { inclusive = true }
                     }
-                }
+                                  }
                 null -> {
                     // Hesap var ama profil yok -> register
                     navController.navigate("register") {
                         popUpTo("splash") { inclusive = true }
                     }
+
                 }
                 else -> {
                     // Güvenlik fallback

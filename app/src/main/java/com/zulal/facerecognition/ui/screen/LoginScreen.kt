@@ -118,7 +118,7 @@ fun LoginScreen(
                                         authViewModel.getUserRole(uid) { role ->
                                             when (role) {
                                                 "Student" -> {
-                                                    navController.navigate("camera") {
+                                                    navController.navigate("courses") {
                                                         popUpTo("login") { inclusive = true }
                                                     }
                                                 }

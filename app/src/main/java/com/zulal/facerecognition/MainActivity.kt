@@ -16,6 +16,7 @@ import com.zulal.facerecognition.data.db.FaceDatabase
 import com.zulal.facerecognition.data.repository.RoomFaceRepository
 import com.zulal.facerecognition.ui.screen.AdminHomeScreen
 import com.zulal.facerecognition.ui.screen.AllUsersScreen
+import com.zulal.facerecognition.ui.screen.AttendanceHistoryScreen
 import com.zulal.facerecognition.ui.screen.CameraScreen
 import com.zulal.facerecognition.ui.screen.CoursesScreen
 import com.zulal.facerecognition.ui.screen.LoginScreen
@@ -57,9 +58,13 @@ fun AppNavigator() {
         composable("login") { LoginScreen(navController) }
         composable("camera") { CameraScreen(navController, faceViewModel) }
         composable("register") { RegisterScreen(navController) }
-        composable("courses") { CoursesScreen(navController, faceViewModel) }
+        composable("courses") { CoursesScreen(navController) }
         composable("all_users") { AllUsersScreen(navController, faceViewModel) }
         composable("adminhome") { AdminHomeScreen(navController) }
+        composable("attendance/{courseName}") { backStackEntry ->
+            val courseName = backStackEntry.arguments?.getString("courseName")
+            AttendanceHistoryScreen(navController, courseName ?: "Unknown Course")
+        }
     }
 }
 
