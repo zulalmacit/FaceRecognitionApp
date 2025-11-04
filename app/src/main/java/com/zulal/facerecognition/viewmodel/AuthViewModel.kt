@@ -11,10 +11,10 @@ class AuthViewModel : ViewModel() {
         name: String,
         studentId: String,
         courses: String,
-        role: String, // ✅ role eklendi
+        role: String,
         onResult: (Boolean, String?) -> Unit
     ) {
-        repo.saveUserProfile(name, studentId, courses, role, onResult) // ✅ role gönderildi
+        repo.saveUserProfile(name, studentId, courses, role, onResult)
     }
 
     fun checkUserProfile(uid: String, onResult: (Boolean) -> Unit) {

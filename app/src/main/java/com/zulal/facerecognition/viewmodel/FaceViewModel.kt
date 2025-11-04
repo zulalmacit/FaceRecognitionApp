@@ -26,30 +26,6 @@ class FaceViewModel(private val repository: IFaceRepository) : ViewModel() {
     var authMessage by mutableStateOf<String?>(null)
         private set
 
-
-    /** Email & Password ile giriş */
-    fun loginUser(email: String, password: String, onResult: (Boolean, String?) -> Unit) {
-        auth.signInWithEmailAndPassword(email, password)
-            .addOnSuccessListener {
-                onResult(true, null)
-            }
-            .addOnFailureListener { e ->
-                onResult(false, e.message)
-            }
-    }
-
-    /** Yeni kullanıcı oluşturma (RegisterScreen için) */
-    fun registerUser(email: String, password: String, onResult: (Boolean, String?) -> Unit) {
-        auth.createUserWithEmailAndPassword(email, password)
-            .addOnSuccessListener {
-                onResult(true, null)
-            }
-            .addOnFailureListener { e ->
-                onResult(false, e.message)
-            }
-    }
-
-
     fun saveFaceEmbeddingToFirestore(uid: String, embedding: FloatArray, onComplete: (Boolean) -> Unit) {
         val db = Firebase.firestore
 

@@ -20,7 +20,6 @@ class AuthRepository {
         auth.createUserWithEmailAndPassword(email, password)
             .addOnSuccessListener { result ->
                 val uid = result.user?.uid ?: return@addOnSuccessListener
-
                 val userMap = hashMapOf(
                     "email" to email,
                     "createdAt" to System.currentTimeMillis()
@@ -38,7 +37,7 @@ class AuthRepository {
         name: String,
         studentId: String,
         courses: String,
-        role: String, // ✅ role parametresi
+        role: String,
         onResult: (Boolean, String?) -> Unit
     ) {
         val uid = FirebaseAuth.getInstance().currentUser?.uid
@@ -52,7 +51,7 @@ class AuthRepository {
             "name" to name,
             "studentId" to studentId,
             "courses" to courses,
-            "role" to role,  // ✅ Firestore'a kaydedildi
+            "role" to role,
             "uid" to uid
         )
 
@@ -72,7 +71,4 @@ class AuthRepository {
                 onResult(false)
             }
     }
-
-
-    fun currentUser() = auth.currentUser
 }

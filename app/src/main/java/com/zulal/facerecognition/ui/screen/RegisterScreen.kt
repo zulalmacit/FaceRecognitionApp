@@ -43,7 +43,6 @@ fun RegisterScreen(
             Text("Select Role", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
 
-            // ✅ Role seçimi: Toggle tarzında 2 buton
             Row(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
