@@ -113,26 +113,40 @@ fun LoginScreen(
                                             message = "User not found"
                                             return@login
                                         }
-                                        authViewModel.checkUserProfile(uid) { exists ->
-                                            if (exists) {
-                                                navController.navigate("courses") {
-                                                    popUpTo("login") { inclusive = true }
+
+                                        // Firestore'dan role bilgisini çek
+                                        authViewModel.getUserRole(uid) { role ->
+                                            when (role) {
+                                                "Student" -> {
+                                                    navController.navigate("camera") {
+                                                        popUpTo("login") { inclusive = true }
+                                                    }
                                                 }
-                                            } else {
-                                                navController.navigate("register") {
-                                                    popUpTo("login") { inclusive = true }
+                                                "Professor" -> {
+                                                    navController.navigate("adminhome") {
+                                                        popUpTo("login") { inclusive = true }
+                                                    }
+                                                }
+                                                null -> {
+                                                    // Profil yoksa register'a yönlendir
+                                                    navController.navigate("register") {
+                                                        popUpTo("login") { inclusive = true }
+                                                    }
+                                                }
+                                                else -> {
+                                                    message = "Unknown role, contact admin."
                                                 }
                                             }
                                         }
+
                                     } else {
                                         message = error ?: "Login failed"
                                     }
                                 }
-
                             } else {
                                 message = "Please enter email and password."
                             }
-                        },
+                },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp),

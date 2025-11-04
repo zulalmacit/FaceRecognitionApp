@@ -19,13 +19,43 @@ fun SplashScreen(navController: NavController) {
     val authViewModel: AuthViewModel = viewModel()
 
     LaunchedEffect(Unit) {
-        if (authViewModel.currentUser() != null) {
-            navController.navigate("courses") {
-                popUpTo("splash") { inclusive = true }
-            }
-        } else {
+        val user = authViewModel.currentUser()
+
+        // Kullanıcı yok -> login ekranına
+        if (user == null) {
             navController.navigate("login") {
                 popUpTo("splash") { inclusive = true }
+            }
+            return@LaunchedEffect
+        }
+
+        val uid = user.uid
+
+        // Firebase'den rolü çek
+        authViewModel.getUserRole(uid) { role ->
+            when (role) {
+                "Student" -> {
+                    navController.navigate("camera") {
+                        popUpTo("splash") { inclusive = true }
+                    }
+                }
+                "Professor" -> {
+                    navController.navigate("professorHome") {
+                        popUpTo("splash") { inclusive = true }
+                    }
+                }
+                null -> {
+                    // Hesap var ama profil yok -> register
+                    navController.navigate("register") {
+                        popUpTo("splash") { inclusive = true }
+                    }
+                }
+                else -> {
+                    // Güvenlik fallback
+                    navController.navigate("login") {
+                        popUpTo("splash") { inclusive = true }
+                    }
+                }
             }
         }
     }
@@ -39,19 +69,18 @@ fun SplashScreen(navController: NavController) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
-        ) { // Orta kısımda yüz ikonu
+        ) {
             Box(
                 modifier = Modifier
                     .size(250.dp)
                     .background(Color(0xFF231A60)),
                 contentAlignment = Alignment.Center
-            )
-            {
+            ) {
                 Image(
-                painter = painterResource(id = R.drawable.splash_face),
-                contentDescription = "Face Icon",
-                modifier = Modifier.size(240.dp)
-            )
+                    painter = painterResource(id = R.drawable.splash_face),
+                    contentDescription = "Face Icon",
+                    modifier = Modifier.size(240.dp)
+                )
             }
         }
     }

@@ -14,6 +14,7 @@ import androidx.navigation.compose.rememberNavController
 import com.google.firebase.FirebaseApp
 import com.zulal.facerecognition.data.db.FaceDatabase
 import com.zulal.facerecognition.data.repository.RoomFaceRepository
+import com.zulal.facerecognition.ui.screen.AdminHomeScreen
 import com.zulal.facerecognition.ui.screen.AllUsersScreen
 import com.zulal.facerecognition.ui.screen.CameraScreen
 import com.zulal.facerecognition.ui.screen.CoursesScreen
@@ -58,6 +59,7 @@ fun AppNavigator() {
         composable("register") { RegisterScreen(navController) }
         composable("courses") { CoursesScreen(navController, faceViewModel) }
         composable("all_users") { AllUsersScreen(navController, faceViewModel) }
+        composable("adminhome") { AdminHomeScreen(navController) }
     }
 }
 

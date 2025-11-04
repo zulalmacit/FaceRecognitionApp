@@ -36,30 +36,31 @@ class AuthRepository {
     fun saveUserProfile(
         name: String,
         studentId: String,
-        courses: String,
+        courses: List<String>,
         role: String,
         onResult: (Boolean, String?) -> Unit
     ) {
         val uid = FirebaseAuth.getInstance().currentUser?.uid
-
         if (uid == null) {
-            onResult(false, "User not logged in")
+            onResult(false, "No user logged in")
             return
         }
 
-        val data = mapOf(
+        val user = hashMapOf(
+            "uid" to uid,
             "name" to name,
             "studentId" to studentId,
-            "courses" to courses,
-            "role" to role,
-            "uid" to uid
+            "courses" to courses, // ✅ LIST NOT STRING
+            "role" to role
         )
 
-        Firebase.firestore.collection("users").document(uid)
-            .set(data)
+        FirebaseFirestore.getInstance().collection("users")
+            .document(uid)
+            .set(user)
             .addOnSuccessListener { onResult(true, null) }
-            .addOnFailureListener { onResult(false, it.message) }
+            .addOnFailureListener { e -> onResult(false, e.message) }
     }
+
 
 
     fun checkUserProfile(uid: String, onResult: (Boolean) -> Unit) {
