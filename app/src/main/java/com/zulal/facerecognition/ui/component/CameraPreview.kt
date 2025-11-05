@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.util.Log
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.annotation.OptIn
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -80,7 +81,8 @@ fun CameraPreview(
     )
 }
 
-@SuppressLint("UnsafeOptInUsageError") //Android lint uyarısını kapat
+// @SuppressLint("UnsafeOptInUsageError") //Android lint uyarısını kapat
+@OptIn(androidx.camera.core.ExperimentalGetImage::class)
 private fun processImageProxy(
     detector: com.google.mlkit.vision.face.FaceDetector,
     imageProxy: ImageProxy,

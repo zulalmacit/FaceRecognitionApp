@@ -40,25 +40,25 @@ class AuthRepository {
         role: String,
         onResult: (Boolean, String?) -> Unit
     ) {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid
-        if (uid == null) {
+        FirebaseAuth.getInstance().currentUser?.uid?.let { uid ->
+
+            val user = hashMapOf(
+                "uid" to uid,
+                "name" to name,
+                "studentId" to studentId,
+                "courses" to courses,
+                "role" to role
+            )
+
+            FirebaseFirestore.getInstance().collection("users")
+                .document(uid)
+                .set(user)
+                .addOnSuccessListener { onResult(true, null) }
+                .addOnFailureListener { e -> onResult(false, e.message) }
+
+        } ?: run {
             onResult(false, "No user logged in")
-            return
         }
-
-        val user = hashMapOf(
-            "uid" to uid,
-            "name" to name,
-            "studentId" to studentId,
-            "courses" to courses, // ✅ LIST NOT STRING
-            "role" to role
-        )
-
-        FirebaseFirestore.getInstance().collection("users")
-            .document(uid)
-            .set(user)
-            .addOnSuccessListener { onResult(true, null) }
-            .addOnFailureListener { e -> onResult(false, e.message) }
     }
 
 
