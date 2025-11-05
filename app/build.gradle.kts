@@ -47,8 +47,11 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.espresso.core)
     implementation(libs.androidx.compose.ui.text)
+    implementation(libs.androidx.compose.foundation)
+    implementation(libs.androidx.compose.material3)
     kapt("androidx.room:room-compiler:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
+    implementation("androidx.compose.material:material-icons-extended")
 
     // Core
     implementation("androidx.core:core-ktx:1.13.1")

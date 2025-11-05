@@ -1,5 +1,7 @@
 package com.zulal.facerecognition.viewmodel
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -85,6 +87,42 @@ class FaceViewModel(private val repository: IFaceRepository) : ViewModel() {
             onResult(faces)
         }
     }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun addAttendance(uid: String, course: String, onResult: (Boolean, String?) -> Unit) {
+        val date = java.time.LocalDate.now().toString()
+        val time = java.time.LocalTime.now().withNano(0).toString()
+
+        val data = mapOf(
+            "uid" to uid,
+            "course" to course,
+            "date" to date,
+            "time" to time,
+            "status" to "present"
+        )
+
+        val ref = db.collection("attendance")
+            .document(uid)
+            .collection("records")
+
+        // aynı gün aynı dersi tekrar ekleme kontrolü
+        ref.whereEqualTo("course", course)
+            .whereEqualTo("date", date)
+            .get()
+            .addOnSuccessListener { result ->
+                if (!result.isEmpty) {
+                    onResult(false, "Attendance already exists today")
+                    return@addOnSuccessListener
+                }
+
+                ref.add(data)
+                    .addOnSuccessListener { onResult(true, null) }
+                    .addOnFailureListener { e -> onResult(false, e.message) }
+            }
+    }
+
+
+
 
     private fun embeddingToJson(embedding: FloatArray): String =
         embedding.joinToString(",")

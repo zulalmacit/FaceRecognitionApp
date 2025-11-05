@@ -60,7 +60,8 @@ fun CoursesScreen(navController: NavController) {
                     courses.forEach { course ->
                         Button(
                             onClick = {
-                                navController.navigate("course_detail/${course}")
+                                navController.navigate("attendance/${course}")
+
                             },
                             modifier = Modifier
                                 .fillMaxWidth()

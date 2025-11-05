@@ -2,9 +2,11 @@ package com.zulal.facerecognition.ui.screen
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,12 +21,20 @@ import com.google.firebase.auth.FirebaseAuth
 import com.zulal.facerecognition.ui.component.CameraPreview
 import com.zulal.facerecognition.viewmodel.FaceViewModel
 
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CameraScreen(navController: NavController, faceViewModel: FaceViewModel) {
+fun CameraScreen(
+    navController: NavController,
+    faceViewModel: FaceViewModel,
+    courseName: String
+) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
     var hasCameraPermission by remember { mutableStateOf(false) }
+
+    // Tek sefer attendance için
+    var attendanceSubmitted by remember { mutableStateOf(false) }
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -47,7 +57,11 @@ fun CameraScreen(navController: NavController, faceViewModel: FaceViewModel) {
     Scaffold(
         topBar = { CenterAlignedTopAppBar(title = { Text("Face Recognition") }) }
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
 
             if (hasCameraPermission) {
                 CameraPreview(
@@ -55,36 +69,45 @@ fun CameraScreen(navController: NavController, faceViewModel: FaceViewModel) {
                     lifecycleOwner = lifecycleOwner,
                     faceViewModel = faceViewModel,
 
-                    // Face embedding geldiğinde Firestore'a kaydet
                     onFaceEmbeddingDetected = { embedding ->
 
-                        val uid = FirebaseAuth.getInstance().currentUser?.uid
+                        // Yüz algılama 2 kere tetiklenmesin
+                        if (attendanceSubmitted) return@CameraPreview
+                        attendanceSubmitted = true
 
-                        if (uid != null) {
-                            faceViewModel.saveFaceEmbeddingToFirestore(uid, embedding) { success ->
-                                if (success) {
-                                    Toast.makeText(context, "Face saved ", Toast.LENGTH_SHORT).show()
-                                    navController.navigate("courses") {
-                                        popUpTo("camera") { inclusive = true }
-                                    }
-                                } else {
-                                    Toast.makeText(context, "Face save failed", Toast.LENGTH_SHORT).show()
+                        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@CameraPreview
+
+                        faceViewModel.addAttendance(uid, courseName) { success, error ->
+                            if (success) {
+                                Toast.makeText(context, "Attendance Recorded ✅", Toast.LENGTH_SHORT).show()
+
+                                navController.navigate("attendance/$courseName") {
+                                    popUpTo("courses") { inclusive = false }
                                 }
+                            } else {
+                                Toast.makeText(context, error ?: "Already marked today", Toast.LENGTH_SHORT).show()
+
+                                // geri dön
+                                navController.popBackStack()
                             }
                         }
                     }
                 )
             } else {
-                Text("Kamera izni gerekli.", modifier = Modifier.align(Alignment.Center))
+                Text(
+                    "Kamera izni gerekli.",
+                    modifier = Modifier.align(Alignment.Center)
+                )
             }
+
             Button(
-                onClick = { navController.navigate("courses") },
+                onClick = { navController.popBackStack() },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(16.dp)
                     .fillMaxWidth()
             ) {
-                Text("Courses Screen'e Git")
+                Text("Back to Courses")
             }
         }
     }

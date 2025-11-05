@@ -1,16 +1,20 @@
 package com.zulal.facerecognition
 
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.google.firebase.FirebaseApp
 import com.zulal.facerecognition.data.db.FaceDatabase
 import com.zulal.facerecognition.data.repository.RoomFaceRepository
@@ -26,6 +30,7 @@ import com.zulal.facerecognition.viewmodel.FaceViewModel
 import com.zulal.facerecognition.viewmodel.FaceViewModelFactory
 
 class MainActivity : ComponentActivity() {
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         FirebaseApp.initializeApp(this)
@@ -37,6 +42,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun AppNavigator() {
     val navController: NavHostController = rememberNavController()
@@ -56,15 +62,25 @@ fun AppNavigator() {
     ) {
         composable("splash") { SplashScreen(navController) }
         composable("login") { LoginScreen(navController) }
-        composable("camera") { CameraScreen(navController, faceViewModel) }
+        composable(
+            "camera/{courseName}",
+            arguments = listOf(navArgument("courseName") { type = NavType.StringType })
+        ) {
+            val courseName = it.arguments?.getString("courseName") ?: ""
+            CameraScreen(navController, faceViewModel, courseName)
+        }
         composable("register") { RegisterScreen(navController) }
         composable("courses") { CoursesScreen(navController) }
         composable("all_users") { AllUsersScreen(navController, faceViewModel) }
         composable("adminhome") { AdminHomeScreen(navController) }
-        composable("attendance/{courseName}") { backStackEntry ->
-            val courseName = backStackEntry.arguments?.getString("courseName")
-            AttendanceHistoryScreen(navController, courseName ?: "Unknown Course")
+        composable(
+            "attendance/{courseName}",
+        ) { backStackEntry ->
+            val courseName = backStackEntry.arguments?.getString("courseName") ?: ""
+            AttendanceHistoryScreen(navController, courseName)
         }
+
+
     }
 }
 
