@@ -26,6 +26,7 @@ import com.zulal.facerecognition.ui.screen.CoursesScreen
 import com.zulal.facerecognition.ui.screen.LoginScreen
 import com.zulal.facerecognition.ui.screen.RegisterScreen
 import com.zulal.facerecognition.ui.screen.SplashScreen
+import com.zulal.facerecognition.ui.screen.StudentsListScreen
 import com.zulal.facerecognition.viewmodel.FaceViewModel
 import com.zulal.facerecognition.viewmodel.FaceViewModelFactory
 
@@ -79,9 +80,13 @@ fun AppNavigator() {
             val courseName = backStackEntry.arguments?.getString("courseName") ?: ""
             AttendanceHistoryScreen(navController, courseName)
         }
-
+        composable("studentsList/{courseName}") { backStackEntry ->
+            val courseName = backStackEntry.arguments?.getString("courseName") ?: ""
+            StudentsListScreen(navController, courseName)
+        }
 
     }
 }
+
 
 
