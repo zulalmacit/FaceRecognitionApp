@@ -171,8 +171,6 @@ fun AttendanceHistoryScreen(
     }
 }
 
-
-
 @Composable
 fun StatBox(
     text: String,

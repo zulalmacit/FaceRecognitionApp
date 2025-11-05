@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.zulal.facerecognition.ui.component.CameraPreview
 import com.zulal.facerecognition.viewmodel.FaceViewModel
 
@@ -33,15 +34,32 @@ fun CameraScreen(
     val context = LocalContext.current
     var hasCameraPermission by remember { mutableStateOf(false) }
 
-    // Tek sefer attendance için
     var attendanceSubmitted by remember { mutableStateOf(false) }
+    var isSessionActive by remember { mutableStateOf(false) }
+
+    val uid = FirebaseAuth.getInstance().currentUser?.uid
+    val db = FirebaseFirestore.getInstance()
+
+    LaunchedEffect(Unit) {
+        db.collection("attendance_session")
+            .document(courseName)
+            .addSnapshotListener { snap, _ ->
+                isSessionActive = snap?.getBoolean("active") == true
+
+                if (!isSessionActive) {
+                    Toast.makeText(context, "Attendance not started by professor.", Toast.LENGTH_LONG).show()
+                    navController.popBackStack()
+                }
+            }
+    }
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         hasCameraPermission = isGranted
         if (!isGranted) {
-            Toast.makeText(context, "Kamera izni reddedildi!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Camera permission required", Toast.LENGTH_SHORT).show()
+            navController.popBackStack()
         }
     }
 
@@ -63,7 +81,7 @@ fun CameraScreen(
                 .padding(paddingValues)
         ) {
 
-            if (hasCameraPermission) {
+            if (hasCameraPermission && isSessionActive) {
                 CameraPreview(
                     modifier = Modifier.fillMaxSize(),
                     lifecycleOwner = lifecycleOwner,
@@ -75,27 +93,27 @@ fun CameraScreen(
                         if (attendanceSubmitted) return@CameraPreview
                         attendanceSubmitted = true
 
-                        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@CameraPreview
+                        if (uid == null) {
+                            Toast.makeText(context, "User not found", Toast.LENGTH_SHORT).show()
+                            return@CameraPreview
+                        }
 
-                        faceViewModel.addAttendance(uid, courseName) { success, error ->
-                            if (success) {
-                                Toast.makeText(context, "Attendance Recorded ✅", Toast.LENGTH_SHORT).show()
+                        db.collection("attendance_status")
+                            .document(courseName)
+                            .collection("students")
+                            .document(uid)
+                            .set(mapOf("status" to "present"))
 
-                                navController.navigate("attendance/$courseName") {
-                                    popUpTo("courses") { inclusive = false }
-                                }
-                            } else {
-                                Toast.makeText(context, error ?: "Already marked today", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Attendance Recorded ", Toast.LENGTH_SHORT).show()
 
-                                // geri dön
-                                navController.popBackStack()
-                            }
+                        navController.navigate("attendance/$courseName") {
+                            popUpTo("courses") { inclusive = false }
                         }
                     }
                 )
             } else {
                 Text(
-                    "Kamera izni gerekli.",
+                    "Waiting for professor...",
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
@@ -107,7 +125,7 @@ fun CameraScreen(
                     .padding(16.dp)
                     .fillMaxWidth()
             ) {
-                Text("Back to Courses")
+                Text("Back")
             }
         }
     }
