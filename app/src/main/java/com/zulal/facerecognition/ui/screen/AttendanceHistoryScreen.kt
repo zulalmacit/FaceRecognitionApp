@@ -36,14 +36,12 @@ fun AttendanceHistoryScreen(
     var attendanceList by remember { mutableStateOf<List<AttendanceRow>>(emptyList()) }
     var totalPresent by remember { mutableStateOf(0) }
     var totalAbsent by remember { mutableStateOf(0) }
+    var isSessionActive by remember { mutableStateOf(false) }
 
     val db = FirebaseFirestore.getInstance()
 
-    // courseName değiştikçe veri fetch et
     LaunchedEffect(courseName) {
-        db.collection("users")
-            .document(uid)
-            .get()
+        db.collection("users").document(uid).get()
             .addOnSuccessListener { doc ->
                 studentName = doc.getString("name") ?: ""
             }
@@ -51,20 +49,28 @@ fun AttendanceHistoryScreen(
         db.collection("attendance")
             .document(uid)
             .collection("records")
-            .whereEqualTo("course", courseName) // ✅ sadece seçilen ders
+            .whereEqualTo("course", courseName)
             .get()
             .addOnSuccessListener { result ->
-                val records = result.documents.mapNotNull { doc ->
+                val records = result.documents.mapNotNull { d ->
                     AttendanceRow(
-                        date = doc.getString("date") ?: "",
-                        time = doc.getString("time") ?: "",
-                        status = doc.getString("status") ?: "present"
+                        date = d.getString("date") ?: "",
+                        time = d.getString("time") ?: "",
+                        status = d.getString("status") ?: "present"
                     )
                 }
-
                 attendanceList = records.sortedByDescending { it.date }
                 totalPresent = records.count { it.status == "present" }
                 totalAbsent = records.count { it.status == "absent" }
+            }
+    }
+
+
+    LaunchedEffect(courseName) {
+        db.collection("attendance_session")
+            .document(courseName)
+            .addSnapshotListener { snap, _ ->
+                isSessionActive = snap?.getBoolean("active") == true
             }
     }
 
@@ -74,7 +80,7 @@ fun AttendanceHistoryScreen(
                 title = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Attendance History")
-                        Text(courseName, fontSize = 13.sp, color = Color.Gray) // ✅ ders adı üstte
+                        Text(courseName, fontSize = 13.sp, color = Color.Gray)
                     }
                 },
                 navigationIcon = {
@@ -85,7 +91,6 @@ fun AttendanceHistoryScreen(
             )
         }
     ) { pad ->
-
         Column(
             modifier = Modifier
                 .padding(pad)
@@ -108,11 +113,9 @@ fun AttendanceHistoryScreen(
                         tint = Color(0xFF49497A),
                         modifier = Modifier.size(60.dp)
                     )
-
                     Spacer(Modifier.height(10.dp))
                     Text(studentName, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-
-                    Text(courseName, fontSize = 14.sp, color = Color.Gray) // ✅ ders adı burada da var
+                    Text(courseName, fontSize = 14.sp, color = Color.Gray)
                 }
             }
 
@@ -128,7 +131,7 @@ fun AttendanceHistoryScreen(
 
             Spacer(Modifier.height(18.dp))
 
-            // Attendance list
+
             if (attendanceList.isEmpty()) {
                 Text("No records for this course.", color = Color.Gray)
             } else {
@@ -145,14 +148,24 @@ fun AttendanceHistoryScreen(
 
             Spacer(Modifier.height(20.dp))
 
+
             Button(
                 onClick = { navController.navigate("camera/$courseName") },
+                enabled = isSessionActive,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(55.dp),
-                colors = ButtonDefaults.buttonColors(Color(0xFFF8B400))
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isSessionActive) Color(0xFFF8B400)
+                    else MaterialTheme.colorScheme.surfaceVariant
+                )
             ) {
-                Text("ADD ATTENDANCE", fontWeight = FontWeight.Bold, color = Color.White)
+                Text(
+                    if (isSessionActive) "ADD ATTENDANCE"
+                    else "Waiting for Teacher to Start",
+                    fontWeight = FontWeight.Bold,
+                    color = if (isSessionActive) Color.White else Color.DarkGray
+                )
             }
         }
     }
@@ -184,19 +197,6 @@ fun StatBox(
         }
     }
 }
-
-@Composable
-fun FilterBox(label: String, modifier: Modifier = Modifier) {
-    OutlinedTextField(
-        value = "",
-        onValueChange = {},
-        label = { Text(label) },
-        leadingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null) },
-        enabled = false,
-        modifier = modifier
-    )
-}
-
 
 @Composable
 fun AttendanceItem(name: String, date: String, time: String, present: Boolean) {
