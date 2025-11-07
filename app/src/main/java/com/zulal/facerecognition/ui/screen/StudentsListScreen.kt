@@ -1,5 +1,6 @@
 package com.zulal.facerecognition.ui.screen
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -11,6 +12,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.google.firebase.firestore.FirebaseFirestore
+import android.content.pm.PackageManager
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,20 +93,58 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
 
             Button(
                 onClick = {
-                    // session açık
-                    db.collection("attendance_session")
-                        .document(courseName)
-                        .set(mapOf("active" to true))
+                    val context = navController.context
+                    val fused = com.google.android.gms.location.LocationServices
+                        .getFusedLocationProviderClient(context) //mevcut son konum
 
-                    students.forEach { s ->
-                        db.collection("attendance_status")
-                            .document(courseName)
-                            .collection("students")
-                            .document(s.uid)
-                            .delete()
+                    //  Konum izni kontrolü
+                    val fine = androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, android.Manifest.permission.ACCESS_FINE_LOCATION //gps konum
+                    )
+                    val coarse = androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, android.Manifest.permission.ACCESS_COARSE_LOCATION// wiif konum
+                    )
+                        //izin yoksa
+                    if (fine != PackageManager.PERMISSION_GRANTED &&
+                        coarse != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        Toast.makeText(context, "Konum izni gerekli!", Toast.LENGTH_SHORT).show()
+                        return@Button
                     }
 
-                    isSessionActive = true
+                    //  cihaz konumu al
+                    fused.lastLocation
+                        .addOnSuccessListener { loc ->
+                            val lat = loc?.latitude
+                            val lng = loc?.longitude
+
+                            if (lat == null || lng == null) {
+                                Toast.makeText(context, "Konum alınamadı.", Toast.LENGTH_SHORT).show()
+                                return@addOnSuccessListener
+                            }
+
+                            //  Firestore’a yaz
+                            val sessionData = mapOf(
+                                "active" to true,
+                                "profLat" to lat,
+                                "profLng" to lng,
+                                "startedAt" to com.google.firebase.Timestamp.now()
+                            )
+
+                            db.collection("attendance_session")
+                                .document(courseName)
+                                .set(sessionData)
+                                .addOnSuccessListener {
+                                    Toast.makeText(context, "Attendance started.", Toast.LENGTH_SHORT).show()
+                                    isSessionActive = true
+                                }
+                                .addOnFailureListener {
+                                    Toast.makeText(context, "Veri kaydedilemedi.", Toast.LENGTH_SHORT).show()
+                                }
+                        }
+                        .addOnFailureListener {
+                            Toast.makeText(context, "Konum alınamadı", Toast.LENGTH_SHORT).show()
+                        }
                 },
                 enabled = !isSessionActive,
                 modifier = Modifier
@@ -113,6 +154,7 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
             ) {
                 Text("Start Attendance", color = Color.White)
             }
+
 
             Spacer(Modifier.height(10.dp))
 
