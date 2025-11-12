@@ -102,4 +102,6 @@ dependencies {
     implementation("com.google.firebase:firebase-ml-model-interpreter:22.0.3")
 
     implementation("com.google.android.gms:play-services-location:21.3.0")
+
+    implementation("org.tensorflow:tensorflow-lite:2.14.0")
 }

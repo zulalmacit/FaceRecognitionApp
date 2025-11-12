@@ -150,7 +150,7 @@ fun AttendanceHistoryScreen(
 
 
             Button(
-                onClick = { navController.navigate("camera/$courseName") },
+                onClick = { navController.navigate("camera/attendance/$courseName") },
                 enabled = isSessionActive,
                 modifier = Modifier
                     .fillMaxWidth()

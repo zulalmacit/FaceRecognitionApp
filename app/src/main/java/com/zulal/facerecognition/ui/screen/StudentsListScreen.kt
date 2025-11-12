@@ -1,44 +1,47 @@
 package com.zulal.facerecognition.ui.screen
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
-import android.content.pm.PackageManager
-
+import com.google.firebase.firestore.SetOptions
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudentsListScreen(navController: NavController, courseName: String) {
-
     val db = FirebaseFirestore.getInstance()
-
     val studentMap = remember { mutableStateMapOf<String, StudentItem>() }
     var isSessionActive by remember { mutableStateOf(false) }
 
     LaunchedEffect(courseName) {
+
         db.collection("users")
             .whereArrayContains("courses", courseName)
+            .whereEqualTo("role", "Student")
             .get()
             .addOnSuccessListener { result ->
-                //map kurduk
-                val uids = mutableListOf<String>()
+                studentMap.clear()
                 result.documents.forEach { doc ->
                     val uid = doc.id
-                    val name = doc.getString("name") ?: ""
-                    uids.add(uid)
-                    // başlangıçta hepsi absent
-                    studentMap[uid] = StudentItem(uid = uid, name = name, status = "absent")
+                    val name = doc.getString("name") ?: "Unknown"
+                    studentMap[uid] = StudentItem(uid, name, "absent")
                 }
             }
+
+
         db.collection("attendance_session")
             .document(courseName)
             .addSnapshotListener { snap, _ ->
@@ -71,17 +74,17 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
             )
         }
     ) { pad ->
-
         Column(
             modifier = Modifier
                 .padding(pad)
                 .padding(16.dp)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-
             Text("Students in this course:", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(10.dp))
 
-            // mapi listeye çevirerek sırala
             val students = studentMap.values.sortedBy { it.name.lowercase() }
             students.forEach { student ->
                 StudentRow(student)
@@ -90,21 +93,20 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
 
             Spacer(Modifier.height(30.dp))
 
-
+            // START Attendance
             Button(
                 onClick = {
                     val context = navController.context
                     val fused = com.google.android.gms.location.LocationServices
-                        .getFusedLocationProviderClient(context) //mevcut son konum
+                        .getFusedLocationProviderClient(context)
 
-                    //  Konum izni kontrolü
                     val fine = androidx.core.content.ContextCompat.checkSelfPermission(
-                        context, android.Manifest.permission.ACCESS_FINE_LOCATION //gps konum
+                        context, Manifest.permission.ACCESS_FINE_LOCATION
                     )
                     val coarse = androidx.core.content.ContextCompat.checkSelfPermission(
-                        context, android.Manifest.permission.ACCESS_COARSE_LOCATION// wiif konum
+                        context, Manifest.permission.ACCESS_COARSE_LOCATION
                     )
-                        //izin yoksa
+
                     if (fine != PackageManager.PERMISSION_GRANTED &&
                         coarse != PackageManager.PERMISSION_GRANTED
                     ) {
@@ -112,35 +114,33 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
                         return@Button
                     }
 
-                    //  cihaz konumu al
                     fused.lastLocation
                         .addOnSuccessListener { loc ->
                             val lat = loc?.latitude
                             val lng = loc?.longitude
-
                             if (lat == null || lng == null) {
                                 Toast.makeText(context, "Konum alınamadı.", Toast.LENGTH_SHORT).show()
                                 return@addOnSuccessListener
                             }
 
-                            //  Firestore’a yaz
+                            // Attendance dokümanlarını başlat
                             val sessionData = mapOf(
                                 "active" to true,
                                 "profLat" to lat,
                                 "profLng" to lng,
-                                "startedAt" to com.google.firebase.Timestamp.now()
+                                "startedAt" to Timestamp.now()
                             )
-
                             db.collection("attendance_session")
                                 .document(courseName)
                                 .set(sessionData)
-                                .addOnSuccessListener {
-                                    Toast.makeText(context, "Attendance started.", Toast.LENGTH_SHORT).show()
-                                    isSessionActive = true
-                                }
-                                .addOnFailureListener {
-                                    Toast.makeText(context, "Veri kaydedilemedi.", Toast.LENGTH_SHORT).show()
-                                }
+
+                            // Attendance_status dokümanı
+                            db.collection("attendance_status")
+                                .document(courseName)
+                                .set(mapOf("initialized" to true), SetOptions.merge())
+
+                            Toast.makeText(context, "Attendance started.", Toast.LENGTH_SHORT).show()
+                            isSessionActive = true
                         }
                         .addOnFailureListener {
                             Toast.makeText(context, "Konum alınamadı", Toast.LENGTH_SHORT).show()
@@ -155,18 +155,16 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
                 Text("Start Attendance", color = Color.White)
             }
 
-
             Spacer(Modifier.height(10.dp))
 
-            // STOP
+            // STOP Attendance
             Button(
                 onClick = {
-                    // session kapat
                     db.collection("attendance_session")
                         .document(courseName)
                         .update("active", false)
 
-                    //absent yaz
+                    //Absent olanları yaz
                     students.forEach { s ->
                         if (s.status != "present") {
                             db.collection("attendance_status")
@@ -177,6 +175,7 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
                         }
                     }
 
+                    Toast.makeText(navController.context, "Attendance stopped.", Toast.LENGTH_SHORT).show()
                     isSessionActive = false
                 },
                 enabled = isSessionActive,
@@ -187,6 +186,8 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
             ) {
                 Text("Stop Attendance", color = Color.White)
             }
+
+            Spacer(Modifier.height(20.dp))
         }
     }
 }
@@ -206,7 +207,6 @@ private fun StudentRow(student: StudentItem) {
                 modifier = Modifier.weight(1f),
                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
             )
-
             Text(
                 text = if (student.status == "present") "present" else "absent",
                 color = if (student.status == "present") Color(0xFF4CAF50) else Color(0xFFE53935),
@@ -215,7 +215,6 @@ private fun StudentRow(student: StudentItem) {
         }
     }
 }
-
 
 private data class StudentItem(
     val uid: String,

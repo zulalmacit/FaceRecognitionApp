@@ -1,6 +1,8 @@
 package com.zulal.facerecognition.ui.component
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.util.Log
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -18,6 +20,7 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.zulal.facerecognition.viewmodel.FaceViewModel
+import java.nio.ByteBuffer
 
 @Composable
 fun CameraPreview(
@@ -81,7 +84,6 @@ fun CameraPreview(
     )
 }
 
-// @SuppressLint("UnsafeOptInUsageError") //Android lint uyarısını kapat
 @OptIn(androidx.camera.core.ExperimentalGetImage::class)
 private fun processImageProxy(
     detector: com.google.mlkit.vision.face.FaceDetector,
@@ -96,12 +98,30 @@ private fun processImageProxy(
         detector.process(image)
             .addOnSuccessListener { faces ->
                 if (faces.isNotEmpty()) {
-                    Log.d("FaceDetection", "Yüz bulundu! Sayı: ${faces.size}")
+                    val face = faces[0] // ilk yüz
+                    val bitmap = imageProxy.toBitmap() ?: return@addOnSuccessListener
 
-                    val dummyEmbedding = FloatArray(128) { 0.5f }
-                    faceViewModel.updateLastEmbedding(dummyEmbedding)
-                    onFaceEmbeddingDetected(dummyEmbedding)
+                    // yüzü kırp
+                    val box = face.boundingBox
+                    val cropped = Bitmap.createBitmap(
+                        bitmap,
+                        box.left.coerceAtLeast(0),
+                        box.top.coerceAtLeast(0),
+                        box.width().coerceAtMost(bitmap.width - box.left),
+                        box.height().coerceAtMost(bitmap.height - box.top)
+                    )
+
+                    val inputArray = bitmapToFloatArray(cropped)
+
+                    // embedding update
+                    faceViewModel.updateLastEmbedding(inputArray)
+                    onFaceEmbeddingDetected(inputArray)
+
+                    Log.d("FaceEmbedding", "Yüz embedding üretildi")
                 }
+            }
+            .addOnFailureListener { e ->
+                Log.e("FaceDetection", "Face detection failed", e)
             }
             .addOnCompleteListener {
                 imageProxy.close()
@@ -109,4 +129,31 @@ private fun processImageProxy(
     } else {
         imageProxy.close()
     }
+}
+
+// Bitmap -> FloatArray dönüştürme
+private fun bitmapToFloatArray(bitmap: Bitmap): FloatArray {
+    val inputImage = Bitmap.createScaledBitmap(bitmap, 160, 160, true)
+    val floatArray = FloatArray(160 * 160 * 3)
+    var index = 0
+
+    for (y in 0 until 160) {
+        for (x in 0 until 160) {
+            val pixel = inputImage.getPixel(x, y)
+            floatArray[index++] = ((pixel shr 16 and 0xFF) - 127.5f) / 128f // R
+            floatArray[index++] = ((pixel shr 8 and 0xFF) - 127.5f) / 128f  // G
+            floatArray[index++] = ((pixel and 0xFF) - 127.5f) / 128f        // B
+        }
+    }
+
+    return floatArray
+}
+
+// ImageProxy -> Bitmap dönüştürme
+private fun ImageProxy.toBitmap(): Bitmap? {
+    val planeProxy = planes.firstOrNull() ?: return null
+    val buffer: ByteBuffer = planeProxy.buffer
+    val bytes = ByteArray(buffer.remaining())
+    buffer.get(bytes)
+    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
 }

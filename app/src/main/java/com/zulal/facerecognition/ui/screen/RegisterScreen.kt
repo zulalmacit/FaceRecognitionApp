@@ -20,7 +20,6 @@ fun RegisterScreen(navController: NavController) {
 
     val viewModel: AuthViewModel = viewModel()
 
-    // SABİT DERS LİSTESİ
     val courseOptions = listOf(
         "Mobile Programming",
         "Artificial Intelligence",
@@ -30,7 +29,6 @@ fun RegisterScreen(navController: NavController) {
         "Operating Systems"
     )
 
-    // States
     var userName by remember { mutableStateOf("") }
     var studentId by remember { mutableStateOf("") }
     var selectedCourses by remember { mutableStateOf(emptyList<String>()) }
@@ -40,6 +38,7 @@ fun RegisterScreen(navController: NavController) {
     var password by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+
 
     Scaffold(
         topBar = { CenterAlignedTopAppBar(title = { Text("Register") }) }
@@ -109,7 +108,7 @@ fun RegisterScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // STUDENT ID ONLY FOR STUDENTS
+            // STUDENT ID
             if (selectedRole == "Student") {
                 OutlinedTextField(
                     value = studentId,
@@ -147,7 +146,6 @@ fun RegisterScreen(navController: NavController) {
             // REGISTER BUTTON
             Button(
                 onClick = {
-
                     val emailT = email.lowercase().trim()
                     val passT = password.trim()
                     val nameT = userName.trim()
@@ -155,7 +153,6 @@ fun RegisterScreen(navController: NavController) {
                     val courseList = selectedCourses
                     val roleT = selectedRole.trim()
 
-                    // VALIDATION
                     if (emailT.isEmpty() || passT.length < 6 || nameT.isEmpty() ||
                         roleT.isEmpty() || courseList.isEmpty() ||
                         (roleT == "Student" && idT.isEmpty())
@@ -177,18 +174,18 @@ fun RegisterScreen(navController: NavController) {
                                     launchSingleTop = true
                                 }
                             } else {
-                                navController.navigate("camera") {
-                                    popUpTo("register") { inclusive = true }
-                                    launchSingleTop = true
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                    navController.navigate("camera/register/") {
+                                        popUpTo("register") { inclusive = true }
+                                    }
                                 }
                             }
-                        }
-                        else {
+                        } else {
                             message = err ?: "Registration failed"
                         }
                     }
                 },
-                enabled = !isLoading,
+                        enabled = !isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp)

@@ -10,7 +10,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -63,29 +62,42 @@ fun AppNavigator() {
     ) {
         composable("splash") { SplashScreen(navController) }
         composable("login") { LoginScreen(navController) }
-        composable(
-            "camera/{courseName}",
-            arguments = listOf(navArgument("courseName") { type = NavType.StringType })
-        ) {
-            val courseName = it.arguments?.getString("courseName") ?: ""
-            CameraScreen(navController, faceViewModel, courseName)
-        }
         composable("register") { RegisterScreen(navController) }
         composable("courses") { CoursesScreen(navController) }
         composable("all_users") { AllUsersScreen(navController, faceViewModel) }
         composable("adminhome") { AdminHomeScreen(navController) }
+
         composable(
             "attendance/{courseName}",
         ) { backStackEntry ->
             val courseName = backStackEntry.arguments?.getString("courseName") ?: ""
             AttendanceHistoryScreen(navController, courseName)
         }
+
         composable("studentsList/{courseName}") { backStackEntry ->
             val courseName = backStackEntry.arguments?.getString("courseName") ?: ""
             StudentsListScreen(navController, courseName)
         }
 
+        composable(
+            route = "camera/{mode}/{courseName}",
+            arguments = listOf(
+                navArgument("mode") { defaultValue = "register" },
+                navArgument("courseName") { defaultValue = "" }
+            )
+        ) { backStackEntry ->
+            val mode = backStackEntry.arguments?.getString("mode") ?: "register"
+            val courseName = backStackEntry.arguments?.getString("courseName") ?: ""
+
+            CameraScreen(
+                navController = navController,
+                faceViewModel = faceViewModel,
+                courseName = courseName,
+                mode = mode
+            )
+        }
     }
+
 }
 
 

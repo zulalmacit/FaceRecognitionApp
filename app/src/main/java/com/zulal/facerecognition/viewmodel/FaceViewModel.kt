@@ -7,15 +7,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.firestore
+import com.google.firebase.firestore.SetOptions
 import com.zulal.facerecognition.data.model.FaceEntity
 import com.zulal.facerecognition.data.repository.IFaceRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlin.math.sqrt
 
 class FaceViewModel(private val repository: IFaceRepository) : ViewModel() {
 
@@ -29,21 +29,24 @@ class FaceViewModel(private val repository: IFaceRepository) : ViewModel() {
         private set
 
     fun saveFaceEmbeddingToFirestore(uid: String, embedding: FloatArray, onComplete: (Boolean) -> Unit) {
-        val db = Firebase.firestore
-
-        val embeddingList = embedding.toList() // Firestore list kaydeder
+        val embeddingList = normalize(embedding).toList()
 
         db.collection("users").document(uid)
-            .update("faceEmbedding", embeddingList)
+            .set(mapOf("faceEmbedding" to embeddingList), SetOptions.merge())
             .addOnSuccessListener { onComplete(true) }
             .addOnFailureListener { onComplete(false) }
+    }
+
+    private fun normalize(vector: FloatArray): FloatArray {
+        val norm = sqrt(vector.map { it * it }.sum())
+        return vector.map { it / norm.toFloat() }.toFloatArray()
     }
 
     fun updateLastEmbedding(embedding: FloatArray) {
         lastEmbedding = embedding
     }
 
-    /** Firestore + Room’a embedding kaydet */
+
     fun insertFace(userName: String, embedding: FloatArray) {
         viewModelScope.launch {
             //  Room’a kaydet
@@ -67,7 +70,7 @@ class FaceViewModel(private val repository: IFaceRepository) : ViewModel() {
         }
     }
 
-    /** Firestore’dan kullanıcı listesini çek */
+
     fun fetchUsersFromFirestore() {
         db.collection("registered_faces")
             .get()
@@ -80,7 +83,6 @@ class FaceViewModel(private val repository: IFaceRepository) : ViewModel() {
             }
     }
 
-    /** Room’daki kayıtlı yüzleri getir */
     fun getAllFaces(onResult: (List<FaceEntity>) -> Unit) {
         viewModelScope.launch {
             val faces = repository.getAllFaces()

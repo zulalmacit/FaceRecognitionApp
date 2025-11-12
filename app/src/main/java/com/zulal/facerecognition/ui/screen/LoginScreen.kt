@@ -161,7 +161,7 @@ fun LoginScreen(
                     if (message.isNotEmpty()) {
                         Text(message, color = Color(0xFF1A1450))
 
-                        //REGISTER OPTION IF LOGIN FAILS
+
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Böyle bir kullanıcı yok mu?", color = Color.Gray, fontSize = 14.sp)
                         TextButton(onClick = {
