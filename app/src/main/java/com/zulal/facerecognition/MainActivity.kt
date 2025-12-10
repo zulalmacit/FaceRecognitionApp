@@ -62,10 +62,19 @@ fun AppNavigator() {
     ) {
         composable("splash") { SplashScreen(navController) }
         composable("login") { LoginScreen(navController) }
-        composable("register") { RegisterScreen(navController) }
         composable("courses") { CoursesScreen(navController) }
         composable("all_users") { AllUsersScreen(navController, faceViewModel) }
         composable("adminhome") { AdminHomeScreen(navController) }
+
+        composable("register?google={google}",
+            arguments = listOf(navArgument("google") { defaultValue = "false" })
+        ) { backStackEntry ->
+
+            val isGoogle = backStackEntry.arguments?.getString("google") == "true"
+
+            RegisterScreen(navController, isGoogleUser = isGoogle)
+        }
+
 
         composable(
             "attendance/{courseName}",

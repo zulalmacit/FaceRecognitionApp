@@ -8,21 +8,23 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.zulal.facerecognition.R
+import com.zulal.facerecognition.util.Constants
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,7 +32,8 @@ fun AttendanceHistoryScreen(
     navController: NavController,
     courseName: String
 ) {
-    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+    val auth = FirebaseAuth.getInstance()
+    val uid = auth.currentUser?.uid ?: return
 
     var studentName by remember { mutableStateOf("") }
     var attendanceList by remember { mutableStateOf<List<AttendanceRow>>(emptyList()) }
@@ -41,36 +44,35 @@ fun AttendanceHistoryScreen(
     val db = FirebaseFirestore.getInstance()
 
     LaunchedEffect(courseName) {
-        db.collection("users").document(uid).get()
+        db.collection(Constants.USERS_COLLECTION).document(uid).get()
             .addOnSuccessListener { doc ->
-                studentName = doc.getString("name") ?: ""
+                studentName = doc.getString(Constants.FIELD_NAME) ?: ""
             }
 
-        db.collection("attendance")
+        db.collection(Constants.ATTENDANCE_COLLECTION)
             .document(uid)
             .collection("records")
-            .whereEqualTo("course", courseName)
+            .whereEqualTo(Constants.FIELD_COURSES, courseName)
             .get()
             .addOnSuccessListener { result ->
                 val records = result.documents.mapNotNull { d ->
                     AttendanceRow(
-                        date = d.getString("date") ?: "",
-                        time = d.getString("time") ?: "",
-                        status = d.getString("status") ?: "present"
+                        date = d.getString(Constants.FIELD_DATE) ?: "",
+                        time = d.getString(Constants.FIELD_TIME) ?: "",
+                        status = d.getString(Constants.FIELD_STATUS) ?: Constants.STATUS_PRESENT
                     )
                 }
                 attendanceList = records.sortedByDescending { it.date }
-                totalPresent = records.count { it.status == "present" }
-                totalAbsent = records.count { it.status == "absent" }
+                totalPresent = records.count { it.status == Constants.STATUS_PRESENT }
+                totalAbsent = records.count { it.status == Constants.STATUS_ABSENT }
             }
     }
 
-
     LaunchedEffect(courseName) {
-        db.collection("attendance_session")
+        db.collection(Constants.ATTENDANCE_SESSION_COLLECTION)
             .document(courseName)
             .addSnapshotListener { snap, _ ->
-                isSessionActive = snap?.getBoolean("active") == true
+                isSessionActive = snap?.getBoolean(Constants.FIELD_ACTIVE) == true
             }
     }
 
@@ -86,6 +88,22 @@ fun AttendanceHistoryScreen(
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = null)
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            auth.signOut()
+                            navController.navigate("login") {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        }
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.logout),
+                            contentDescription = "Logout",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             )
@@ -131,7 +149,6 @@ fun AttendanceHistoryScreen(
 
             Spacer(Modifier.height(18.dp))
 
-
             if (attendanceList.isEmpty()) {
                 Text("No records for this course.", color = Color.Gray)
             } else {
@@ -140,14 +157,13 @@ fun AttendanceHistoryScreen(
                         name = studentName,
                         date = row.date,
                         time = row.time,
-                        present = row.status == "present"
+                        present = row.status == Constants.STATUS_PRESENT
                     )
                     Spacer(Modifier.height(10.dp))
                 }
             }
 
             Spacer(Modifier.height(20.dp))
-
 
             Button(
                 onClick = { navController.navigate("camera/attendance/$courseName") },
@@ -177,14 +193,12 @@ fun StatBox(
     count: Int,
     color: Color,
     modifier: Modifier = Modifier
-)
- {
-     Card(
-         shape = RoundedCornerShape(12.dp),
-         colors = CardDefaults.cardColors(color.copy(alpha = 0.12f)),
-         modifier = modifier
-     )
-     {
+) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(color.copy(alpha = 0.12f)),
+        modifier = modifier
+    ) {
         Column(
             Modifier.padding(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally

@@ -1,5 +1,6 @@
 package com.zulal.facerecognition.ui.screen
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -13,10 +14,16 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.zulal.facerecognition.viewmodel.AuthViewModel
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RegisterScreen(navController: NavController) {
+fun RegisterScreen(
+    navController: NavController,
+    isGoogleUser: Boolean = false
+) {
 
     val viewModel: AuthViewModel = viewModel()
 
@@ -34,23 +41,31 @@ fun RegisterScreen(navController: NavController) {
     var selectedCourses by remember { mutableStateOf(emptyList<String>()) }
     var showCourseDropdown by remember { mutableStateOf(false) }
     var selectedRole by remember { mutableStateOf("") }
+
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+
     var message by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
 
+    // email otomatik doldur
+    LaunchedEffect(isGoogleUser) {
+        if (isGoogleUser) {
+            email = viewModel.currentUser()?.email ?: ""
+        }
+    }
 
     Scaffold(
         topBar = { CenterAlignedTopAppBar(title = { Text("Register") }) }
     ) { padding ->
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
             // ROLE SELECT
@@ -77,28 +92,31 @@ fun RegisterScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // EMAIL
+
             OutlinedTextField(
                 value = email,
-                onValueChange = { email = it.trim() },
+                onValueChange = {
+                    if (!isGoogleUser) email = it
+                },
+                readOnly = isGoogleUser,
                 label = { Text("Email") },
                 modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // PASSWORD
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Password (min 6 chars)") },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth()
-            )
+            if (!isGoogleUser) {
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password (min 6 chars)") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
-            Spacer(modifier = Modifier.height(16.dp))
 
-            // NAME
             OutlinedTextField(
                 value = userName,
                 onValueChange = { userName = it },
@@ -108,7 +126,7 @@ fun RegisterScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // STUDENT ID
+
             if (selectedRole == "Student") {
                 OutlinedTextField(
                     value = studentId,
@@ -116,11 +134,9 @@ fun RegisterScreen(navController: NavController) {
                     label = { Text("Enter your student id") },
                     modifier = Modifier.fillMaxWidth()
                 )
-
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // COURSE SELECTION
             Text("Select Courses", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
 
@@ -131,31 +147,32 @@ fun RegisterScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Row(modifier = Modifier.fillMaxWidth()) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 selectedCourses.forEach { course ->
                     AssistChip(
                         onClick = {},
-                        label = { Text(course) },
-                        modifier = Modifier.padding(end = 6.dp, bottom = 6.dp)
+                        label = { Text(course) }
                     )
                 }
             }
+
 
             Spacer(modifier = Modifier.height(24.dp))
 
             // REGISTER BUTTON
             Button(
                 onClick = {
-                    val emailT = email.lowercase().trim()
-                    val passT = password.trim()
                     val nameT = userName.trim()
                     val idT = studentId.trim()
-                    val courseList = selectedCourses
                     val roleT = selectedRole.trim()
+                    val courseList = selectedCourses
 
-                    if (emailT.isEmpty() || passT.length < 6 || nameT.isEmpty() ||
-                        roleT.isEmpty() || courseList.isEmpty() ||
-                        (roleT == "Student" && idT.isEmpty())
+                    if (nameT.isEmpty() || roleT.isEmpty() || courseList.isEmpty()
+                        || (roleT == "Student" && idT.isEmpty())
                     ) {
                         message = "Please fill all fields correctly."
                         return@Button
@@ -163,43 +180,56 @@ fun RegisterScreen(navController: NavController) {
 
                     isLoading = true
 
-                    viewModel.registerWithProfile(
-                        emailT, passT, nameT, idT, courseList, roleT
-                    ) { ok, err ->
-                        isLoading = false
-                        if (ok) {
-                            if (roleT == "Professor") {
-                                navController.navigate("adminhome") {
-                                    popUpTo("register") { inclusive = true }
-                                    launchSingleTop = true
-                                }
+                    if (isGoogleUser) {
+                        // GOOGLE SADECE FIRESTORE’A KAYIT
+                        viewModel.saveGoogleProfile(
+                            name = nameT,
+                            studentId = idT,
+                            courses = courseList,
+                            role = roleT
+                        ) { ok, err ->
+                            isLoading = false
+                            if (ok) {
+                                navigateAfterRegister(navController, roleT)
                             } else {
-                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                    navController.navigate("camera/register/") {
-                                        popUpTo("register") { inclusive = true }
-                                    }
-                                }
+                                message = err ?: "Google profile save error"
                             }
-                        } else {
-                            message = err ?: "Registration failed"
+                        }
+
+                    } else {
+                        // NORMAL HEM AUTH HEM FIRESTORE
+                        viewModel.registerWithProfile(
+                            email = email.trim(),
+                            password = password.trim(),
+                            name = nameT,
+                            studentId = idT,
+                            courses = courseList,
+                            role = roleT
+                        ) { ok, err ->
+                            isLoading = false
+                            if (ok) {
+                                navigateAfterRegister(navController, roleT)
+                            } else {
+                                message = err ?: "Registration failed"
+                            }
                         }
                     }
                 },
-                        enabled = !isLoading,
+                enabled = !isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp)
             ) {
-                Text(if (isLoading) "Creating account..." else "Continue")
+                Text(if (isLoading) "Saving..." else "Continue")
             }
 
             if (message.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(Modifier.height(12.dp))
                 Text(message, color = MaterialTheme.colorScheme.error)
             }
         }
 
-        // MULTI-SELECT COURSE POPUP
+        // COURSES POPUP
         if (showCourseDropdown) {
             AlertDialog(
                 onDismissRequest = { showCourseDropdown = false },
@@ -210,23 +240,51 @@ fun RegisterScreen(navController: NavController) {
                 },
                 title = { Text("Select Courses") },
                 text = {
-                    Column {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                    ) {
                         courseOptions.forEach { course ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        val checked = selectedCourses.contains(course)
+                                        selectedCourses =
+                                            if (checked) selectedCourses - course
+                                            else selectedCourses + course
+                                    }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Checkbox(
                                     checked = selectedCourses.contains(course),
-                                    onCheckedChange = { checked ->
-                                        selectedCourses =
-                                            if (checked) selectedCourses + course
-                                            else selectedCourses - course
-                                    }
+                                    onCheckedChange = null
                                 )
-                                Text(course)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = course,
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
                         }
                     }
                 }
             )
+        }
+
+    }
+}
+
+fun navigateAfterRegister(navController: NavController, role: String) {
+    if (role == "Professor") {
+        navController.navigate("adminhome") {
+            popUpTo("register") { inclusive = true }
+        }
+    } else {
+        navController.navigate("camera/register/") {
+            popUpTo("register") { inclusive = true }
         }
     }
 }

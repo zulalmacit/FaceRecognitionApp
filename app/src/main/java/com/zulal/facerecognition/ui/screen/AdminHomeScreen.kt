@@ -12,6 +12,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -24,18 +26,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.zulal.facerecognition.R
+import com.zulal.facerecognition.util.Constants
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-
 fun AdminHomeScreen(navController: NavController) {
 
-    val user = FirebaseAuth.getInstance().currentUser
+    val auth = FirebaseAuth.getInstance()
+    val user = auth.currentUser
     val db = FirebaseFirestore.getInstance()
 
     var professorName by remember { mutableStateOf("") }
@@ -45,16 +51,18 @@ fun AdminHomeScreen(navController: NavController) {
         val uid = firebaseUser.uid
 
         LaunchedEffect(Unit) {
-            db.collection("users").document(uid)
+            db.collection(Constants.USERS_COLLECTION).document(uid)
                 .get()
                 .addOnSuccessListener { doc ->
-                    professorName = doc.getString("name") ?: ""
-                    val courses = doc.get("courses") as? List<String> ?: emptyList()
+                    professorName = doc.getString(Constants.FIELD_NAME) ?: ""
+                    val courses = doc.get(Constants.FIELD_COURSES) as? List<String> ?: emptyList()
                     courseList = courses
                 }
         }
     } ?: run {
-        navController.navigate("login") { popUpTo(0) }
+        navController.navigate("login") {
+            popUpTo(0) { inclusive = true }
+        }
         return
     }
 
@@ -62,6 +70,20 @@ fun AdminHomeScreen(navController: NavController) {
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Professor Dashboard") },
+                actions = {
+                    IconButton(onClick = {
+                        auth.signOut()
+                        navController.navigate("login") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.logout),
+                            contentDescription = "Logout",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             )
         }
     ) { padding ->

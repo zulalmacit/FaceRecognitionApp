@@ -12,6 +12,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.zulal.facerecognition.data.model.FaceEntity
 import com.zulal.facerecognition.data.repository.IFaceRepository
+import com.zulal.facerecognition.util.Constants
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -31,8 +32,8 @@ class FaceViewModel(private val repository: IFaceRepository) : ViewModel() {
     fun saveFaceEmbeddingToFirestore(uid: String, embedding: FloatArray, onComplete: (Boolean) -> Unit) {
         val embeddingList = normalize(embedding).toList()
 
-        db.collection("users").document(uid)
-            .set(mapOf("faceEmbedding" to embeddingList), SetOptions.merge())
+        db.collection(Constants.USERS_COLLECTION).document(uid)
+            .set(mapOf(Constants.FIELD_FACE_EMBEDDING to embeddingList), SetOptions.merge())
             .addOnSuccessListener { onComplete(true) }
             .addOnFailureListener { onComplete(false) }
     }
@@ -45,6 +46,8 @@ class FaceViewModel(private val repository: IFaceRepository) : ViewModel() {
     fun updateLastEmbedding(embedding: FloatArray) {
         lastEmbedding = embedding
     }
+
+
 
 
     fun insertFace(userName: String, embedding: FloatArray) {
@@ -98,18 +101,18 @@ class FaceViewModel(private val repository: IFaceRepository) : ViewModel() {
         val data = mapOf(
             "uid" to uid,
             "course" to course,
-            "date" to date,
-            "time" to time,
-            "status" to "present"
+            Constants.FIELD_DATE to date,
+            Constants.FIELD_TIME to time,
+            Constants.FIELD_STATUS to Constants.STATUS_PRESENT
         )
 
-        val ref = db.collection("attendance")
+        val ref = db.collection(Constants.ATTENDANCE_COLLECTION)
             .document(uid)
             .collection("records")
 
         // aynı gün aynı dersi tekrar ekleme kontrolü
         ref.whereEqualTo("course", course)
-            .whereEqualTo("date", date)
+            .whereEqualTo(Constants.FIELD_DATE, date)
             .get()
             .addOnSuccessListener { result ->
                 if (!result.isEmpty) {

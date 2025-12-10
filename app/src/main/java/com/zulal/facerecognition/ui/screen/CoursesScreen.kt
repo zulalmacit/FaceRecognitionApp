@@ -5,26 +5,32 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.zulal.facerecognition.R
+import com.zulal.facerecognition.util.Constants
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CoursesScreen(navController: NavController) {
 
-    val userId = FirebaseAuth.getInstance().currentUser?.uid
+    val auth = FirebaseAuth.getInstance()
+    val userId = auth.currentUser?.uid
     var courses by remember { mutableStateOf<List<String>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
         if (userId != null) {
             FirebaseFirestore.getInstance()
-                .collection("users")
+                .collection(Constants.USERS_COLLECTION)
                 .document(userId)
                 .get()
                 .addOnSuccessListener { doc ->
-                    val courseList = doc.get("courses") as? List<String> ?: emptyList()
+                    val courseList = doc.get(Constants.FIELD_COURSES) as? List<String> ?: emptyList()
                     courses = courseList
                     loading = false
                 }
@@ -36,38 +42,59 @@ fun CoursesScreen(navController: NavController) {
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Your Courses") },
+                actions = {
+                    IconButton(onClick = {
+                        auth.signOut()
+                        navController.navigate("login") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.logout),
+                            contentDescription = "Logout",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            )
+        }
+    ) { padding ->
 
-        if (loading) {
-            CircularProgressIndicator()
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("Your Courses", style = MaterialTheme.typography.titleLarge)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentAlignment = Alignment.Center
+        ) {
 
-                Spacer(modifier = Modifier.height(20.dp))
+            if (loading) {
+                CircularProgressIndicator()
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
 
-                if (courses.isEmpty()) {
-                    Text("No courses found.")
-                } else {
-                    courses.forEach { course ->
-                        Button(
-                            onClick = {
-                                navController.navigate("attendance/${course}")
-
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp)
-                        ) {
-                            Text(course)
+                    if (courses.isEmpty()) {
+                        Text("No courses found.")
+                    } else {
+                        courses.forEach { course ->
+                            Button(
+                                onClick = {
+                                    navController.navigate("attendance/${course}")
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp)
+                            ) {
+                                Text(course)
+                            }
                         }
                     }
                 }

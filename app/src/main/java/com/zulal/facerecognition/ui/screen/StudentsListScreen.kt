@@ -14,47 +14,54 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
+import com.google.android.gms.location.LocationServices
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import android.annotation.SuppressLint
+import androidx.compose.ui.unit.Constraints
+import com.zulal.facerecognition.util.Constants
+import com.zulal.facerecognition.util.getCurrentSsid
 
+@SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudentsListScreen(navController: NavController, courseName: String) {
+
     val db = FirebaseFirestore.getInstance()
     val studentMap = remember { mutableStateMapOf<String, StudentItem>() }
     var isSessionActive by remember { mutableStateOf(false) }
 
     LaunchedEffect(courseName) {
 
-        db.collection("users")
-            .whereArrayContains("courses", courseName)
-            .whereEqualTo("role", "Student")
+        db.collection(Constants.USERS_COLLECTION)
+            .whereArrayContains(Constants.FIELD_COURSES, courseName)
+            .whereEqualTo(Constants.FIELD_ROLE, Constants.ROLE_STUDENT)
             .get()
             .addOnSuccessListener { result ->
                 studentMap.clear()
                 result.documents.forEach { doc ->
                     val uid = doc.id
-                    val name = doc.getString("name") ?: "Unknown"
-                    studentMap[uid] = StudentItem(uid, name, "absent")
+                    val name = doc.getString(Constants.FIELD_NAME) ?: "Unknown"
+                    studentMap[uid] = StudentItem(uid, name, Constants.STATUS_ABSENT)
                 }
             }
 
-
-        db.collection("attendance_session")
+        db.collection(Constants.ATTENDANCE_SESSION_COLLECTION)
             .document(courseName)
             .addSnapshotListener { snap, _ ->
-                isSessionActive = snap?.getBoolean("active") == true
+                isSessionActive = snap?.getBoolean(Constants.FIELD_ACTIVE) == true
             }
 
-        db.collection("attendance_status")
+        db.collection(Constants.ATTENDANCE_STATUS_COLLECTION)
             .document(courseName)
-            .collection("students")
+            .collection(Constants.ROLE_STUDENT)
             .addSnapshotListener { snap, _ ->
                 snap?.documents?.forEach { d ->
                     val uid = d.id
-                    val status = d.getString("status") ?: "absent"
+                    val status = d.getString(Constants.FIELD_STATUS) ?: Constants.STATUS_ABSENT
                     studentMap[uid]?.let { old ->
                         studentMap[uid] = old.copy(status = status)
                     }
@@ -97,13 +104,12 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
             Button(
                 onClick = {
                     val context = navController.context
-                    val fused = com.google.android.gms.location.LocationServices
-                        .getFusedLocationProviderClient(context)
+                    val fused = LocationServices.getFusedLocationProviderClient(context)
 
-                    val fine = androidx.core.content.ContextCompat.checkSelfPermission(
+                    val fine = ContextCompat.checkSelfPermission(
                         context, Manifest.permission.ACCESS_FINE_LOCATION
                     )
-                    val coarse = androidx.core.content.ContextCompat.checkSelfPermission(
+                    val coarse = ContextCompat.checkSelfPermission(
                         context, Manifest.permission.ACCESS_COARSE_LOCATION
                     )
 
@@ -123,19 +129,27 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
                                 return@addOnSuccessListener
                             }
 
-                            // Attendance dokümanlarını başlat
-                            val sessionData = mapOf(
-                                "active" to true,
-                                "profLat" to lat,
-                                "profLng" to lng,
-                                "startedAt" to Timestamp.now()
+                            // Hocanın o an bağlı olduğu Wi-Fi SSID'sini al
+                            val ssid = getCurrentSsid(context)
+
+
+                            val sessionData = mutableMapOf<String, Any>(
+                                Constants.FIELD_ACTIVE to true,
+                                Constants.PROF_LAT to lat,
+                                Constants.PROF_LNG to lng,
+                                "startedAt" to Timestamp.now(),
                             )
-                            db.collection("attendance_session")
+
+                            // Eğer SSID okunabildiyse Firestore'a ekle
+                            if (ssid != null) {
+                                sessionData[Constants.FIELD_ALLOWED_SSID] = ssid
+                            }
+
+                            db.collection(Constants.ATTENDANCE_SESSION_COLLECTION)
                                 .document(courseName)
                                 .set(sessionData)
 
-                            // Attendance_status dokümanı
-                            db.collection("attendance_status")
+                            db.collection(Constants.ATTENDANCE_STATUS_COLLECTION)
                                 .document(courseName)
                                 .set(mapOf("initialized" to true), SetOptions.merge())
 
@@ -145,7 +159,9 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
                         .addOnFailureListener {
                             Toast.makeText(context, "Konum alınamadı", Toast.LENGTH_SHORT).show()
                         }
+
                 },
+
                 enabled = !isSessionActive,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -157,21 +173,21 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
 
             Spacer(Modifier.height(10.dp))
 
-            // STOP Attendance
+            // STOP
             Button(
                 onClick = {
-                    db.collection("attendance_session")
+                    db.collection(Constants.ATTENDANCE_SESSION_COLLECTION)
                         .document(courseName)
-                        .update("active", false)
+                        .update(Constants.FIELD_ACTIVE, false)
 
-                    //Absent olanları yaz
+                    // Absent olanları yaz
                     students.forEach { s ->
                         if (s.status != "present") {
-                            db.collection("attendance_status")
+                            db.collection(Constants.ATTENDANCE_STATUS_COLLECTION)
                                 .document(courseName)
-                                .collection("students")
+                                .collection(Constants.ROLE_STUDENT)
                                 .document(s.uid)
-                                .set(mapOf("status" to "absent"))
+                                .set(mapOf(Constants.FIELD_STATUS to Constants.STATUS_ABSENT))
                         }
                     }
 

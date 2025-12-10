@@ -29,7 +29,6 @@ android {
         compose = true
     }
     composeOptions {
-        // 🔥 Kotlin 1.9.23 ile uyumlu
         kotlinCompilerExtensionVersion = "1.5.11"
     }
 
@@ -104,4 +103,6 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
     implementation("org.tensorflow:tensorflow-lite:2.14.0")
+    implementation("com.google.android.gms:play-services-auth:21.1.0")
+
 }
