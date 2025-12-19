@@ -18,26 +18,4 @@ class RoomFaceRepository(private val dao: FaceDao) : IFaceRepository {
     override suspend fun getAllFaces(): List<FaceEntity> = dao.getAllFaces()
     override suspend fun deleteFace(face: FaceEntity) = dao.deleteFace(face)
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    override suspend fun saveAttendance(uid: String, course: String, status: String) {
-        val date = java.time.LocalDate.now().toString()
-        val time = java.time.LocalTime.now().withNano(0).toString()
-
-        val data = mapOf(
-            "uid" to uid,
-            "course" to course,
-            "date" to date,
-            "time" to time,
-            "status" to status
-        )
-
-        FirebaseFirestore.getInstance()
-            .collection("attendance")
-            .document(uid)
-            .collection(course)
-            .document(date)
-            .set(data)
-            .await()
-    }
-
 }

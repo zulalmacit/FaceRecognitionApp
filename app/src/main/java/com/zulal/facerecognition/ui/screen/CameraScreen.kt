@@ -131,13 +131,45 @@ fun CameraScreen(
                 .addSnapshotListener { snap, _ ->
                     isSessionActive = snap?.getBoolean(Constants.FIELD_ACTIVE) == true
                     if (!isSessionActive) {
-                        Toast.makeText(
-                            context,
-                            "Attendance not started by professor.",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        Toast.makeText(context, "Attendance not started by professor.", Toast.LENGTH_LONG).show()
                     }
                 }
+
+            onDispose {
+                sessionReg?.remove()
+                sessionReg = null
+            }
+        }
+    }
+
+    // dispose cleanup
+    DisposableEffect(Unit) {
+        onDispose {
+            processing = false
+            registerEmbeddings.clear()
+            attendanceEmbeddings.clear()
+            runCatching { faceNetModel.close() }
+        }
+    }
+
+    // helper register iptal
+    fun cancelRegisterAndGoLogin() {
+        scope.launch {
+            val uidSafe = auth.currentUser?.uid
+            try {
+                if (uidSafe != null) {
+                    db.collection(Constants.USERS_COLLECTION).document(uidSafe).delete()
+                }
+            } catch (_: Exception) {}
+
+            try { auth.currentUser?.delete() } catch (_: Exception) {}
+            auth.signOut()
+
+            navController.navigate("login") {
+                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                launchSingleTop = true
+                restoreState = false
+            }
         }
     }
 
@@ -160,8 +192,11 @@ fun CameraScreen(
                     onFaceEmbeddingDetected = { rawEmbedding ->
                         if (attendanceSubmitted) return@CameraPreview
 
-                        val emb = normalize(faceNetModel.getFaceEmbedding(rawEmbedding))
-                        registerEmbeddings.add(emb)
+                        scope.launch {
+                            val emb = withContext(Dispatchers.Default) {
+                                normalize(faceNetModel.getFaceEmbedding(rawEmbedding))
+                            }
+                            registerEmbeddings.add(emb)
 
 
                         if (registerEmbeddings.size == 1) {
@@ -190,35 +225,32 @@ fun CameraScreen(
                             return@CameraPreview
                         }
 
-                        val avgEmbedding = averageEmbeddings(registerEmbeddings.toList())
+                            val avgEmbedding = withContext(Dispatchers.Default) {
+                                averageEmbeddings(registerEmbeddings.toList())
+                            }
 
-                        faceViewModel.saveFaceEmbeddingToFirestore(uidSafe, avgEmbedding) { success ->
-                            if (success) {
-                                Toast.makeText(
-                                    context,
-                                    "Face data saved successfully!",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                            faceViewModel.saveFaceEmbeddingToFirestore(uidSafe, avgEmbedding) { success ->
+                                scope.launch {
+                                    if (success) {
+                                        db.collection(Constants.USERS_COLLECTION)
+                                            .document(uidSafe)
+                                            .set(mapOf("faceVerified" to true), SetOptions.merge())
 
-                                //  BAŞARILI: Gecikme Ekle
-                                view.postDelayed({
-                                    navController.navigate("courses") {
-                                        popUpTo("register") { inclusive = true }
+                                        Toast.makeText(context, "Face data saved successfully!", Toast.LENGTH_SHORT).show()
+
+                                        delay(800)
+                                        navController.navigate("courses") {
+                                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                            launchSingleTop = true
+                                            restoreState = false
+                                        }
+                                    } else {
+                                        Toast.makeText(context, "Error saving face data", Toast.LENGTH_SHORT).show()
+                                        delay(800)
+                                        processing = false
+                                        registerEmbeddings.clear()
                                     }
-                                }, 1500)
-
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    "Error saving face data",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-
-                                //  BAŞARISIZ: tekrar denemeye izin ver
-                                view.postDelayed({
-                                    attendanceSubmitted = false
-                                    registerEmbeddings.clear()
-                                }, 1500)
+                                }
                             }
                         }
                     }
@@ -234,8 +266,11 @@ fun CameraScreen(
                     onFaceEmbeddingDetected = { rawEmbedding ->
                         if (attendanceSubmitted) return@CameraPreview
 
-                        val emb = normalize(faceNetModel.getFaceEmbedding(rawEmbedding))
-                        attendanceEmbeddings.add(emb)
+                        scope.launch {
+                            val emb = withContext(Dispatchers.Default) {
+                                normalize(faceNetModel.getFaceEmbedding(rawEmbedding))
+                            }
+                            attendanceEmbeddings.add(emb)
 
                         if (attendanceEmbeddings.size == 1) {
                             scope.launch {
@@ -246,7 +281,16 @@ fun CameraScreen(
                                 delay(1500)
                                 snackbarHostState.currentSnackbarData?.dismiss()
                             }
-                        }
+
+                            if (attendanceEmbeddings.size < framesNeeded) return@launch
+
+                            processing = true
+
+                            val uidSafe = uid ?: run {
+                                processing = false
+                                attendanceEmbeddings.clear()
+                                return@launch
+                            }
 
                         if (attendanceEmbeddings.size < framesNeeded) {
                             return@CameraPreview

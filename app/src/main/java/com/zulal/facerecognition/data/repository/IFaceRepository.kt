@@ -9,8 +9,5 @@ interface IFaceRepository {
     suspend fun getFaceByName(name: String): FaceEntity?
     suspend fun getAllFaces(): List<FaceEntity>
     suspend fun deleteFace(face: FaceEntity)
-    suspend fun saveAttendance(uid: String, course: String, status: String = Constants.STATUS_PRESENT)
-
-
 
 }

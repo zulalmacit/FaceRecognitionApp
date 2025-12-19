@@ -24,8 +24,8 @@ import com.zulal.facerecognition.ui.graphic.GuideRectGraphic
 import com.zulal.facerecognition.viewmodel.FaceViewModel
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
-import kotlin.math.max
-import kotlin.math.min
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 @Composable
 fun CameraPreview(
@@ -35,6 +35,21 @@ fun CameraPreview(
     onFaceEmbeddingDetected: (FloatArray) -> Unit
 ) {
     val context = LocalContext.current
+    val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
+
+    // Analyzer artık UI değil background thread’de çalışacak
+    val analysisExecutor: ExecutorService = remember { Executors.newSingleThreadExecutor() }
+
+    // Callback stale olmasın diye
+    val onFaceEmbeddingDetectedState by rememberUpdatedState(onFaceEmbeddingDetected)
+
+    // Camera / ML kaynaklarını tutalım ki dispose’ta kapatalım
+    val cameraProviderFuture = remember(context) { ProcessCameraProvider.getInstance(context) }
+    var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+    var analysisUseCase by remember { mutableStateOf<ImageAnalysis?>(null) }
+    var detector by remember { mutableStateOf<FaceDetector?>(null) }
+    var overlayRef by remember { mutableStateOf<GraphicOverlay?>(null) }
+    var previewViewRef by remember { mutableStateOf<PreviewView?>(null) }
 
     AndroidView(
         modifier = modifier,
@@ -65,10 +80,21 @@ fun CameraPreview(
             }
             container.addView(graphicOverlay)
 
-            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-            cameraProviderFuture.addListener({
-                try {
-                    val cameraProvider = cameraProviderFuture.get()
+            previewViewRef = previewView
+            overlayRef = graphicOverlay
+
+            container
+        }
+    )
+
+    // Bind işi composable tarafında yönetilsin (dispose’ta da temizleyeceğiz)
+    LaunchedEffect(lifecycleOwner) {
+        try {
+            val provider = cameraProviderFuture.get()
+            cameraProvider = provider
+
+            val previewView = previewViewRef ?: return@LaunchedEffect
+            val overlay = overlayRef ?: return@LaunchedEffect
 
                     val preview = Preview.Builder().build().also {
                         it.setSurfaceProvider(previewView.surfaceProvider)
@@ -85,7 +111,9 @@ fun CameraPreview(
                         .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
                         .build()
 
-                    val detector = FaceDetection.getClient(options)
+            val faceDetector = FaceDetection.getClient(options)
+            detector = faceDetector
+            analysisUseCase = analysis
 
                     val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
                     val lensFacing = CameraSelector.LENS_FACING_FRONT

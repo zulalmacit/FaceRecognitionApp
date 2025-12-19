@@ -11,6 +11,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.zulal.facerecognition.data.model.FaceEntity
+import com.zulal.facerecognition.data.repository.AttendanceRepository
 import com.zulal.facerecognition.data.repository.IFaceRepository
 import com.zulal.facerecognition.util.Constants
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +19,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlin.math.sqrt
 
-class FaceViewModel(private val repository: IFaceRepository) : ViewModel() {
+class FaceViewModel(
+    private val repository: IFaceRepository,
+    private val attendanceRepository: AttendanceRepository
+) : ViewModel() {
 
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
@@ -48,32 +52,6 @@ class FaceViewModel(private val repository: IFaceRepository) : ViewModel() {
     }
 
 
-
-
-    fun insertFace(userName: String, embedding: FloatArray) {
-        viewModelScope.launch {
-            //  Room’a kaydet
-            val jsonEmbedding = embeddingToJson(embedding)
-            val face = FaceEntity(userName = userName, embedding = jsonEmbedding)
-            repository.insertFace(face)
-
-            //  Firestore’a kaydet
-            val data = hashMapOf(
-                "userName" to userName,
-                "embedding" to embedding.toList()
-            )
-            db.collection("registered_faces")
-                .add(data)
-                .addOnSuccessListener {
-                    println("Firestore: $userName başarıyla kaydedildi.")
-                }
-                .addOnFailureListener { e ->
-                    println("Firestore hata: ${e.message}")
-                }
-        }
-    }
-
-
     fun fetchUsersFromFirestore() {
         db.collection("registered_faces")
             .get()
@@ -95,35 +73,17 @@ class FaceViewModel(private val repository: IFaceRepository) : ViewModel() {
 
     @RequiresApi(Build.VERSION_CODES.O)
     fun addAttendance(uid: String, course: String, onResult: (Boolean, String?) -> Unit) {
-        val date = java.time.LocalDate.now().toString()
-        val time = java.time.LocalTime.now().withNano(0).toString()
+        viewModelScope.launch {
+            val r = attendanceRepository.addAttendanceOncePerDay(uid, course)
 
-        val data = mapOf(
-            "uid" to uid,
-            "course" to course,
-            Constants.FIELD_DATE to date,
-            Constants.FIELD_TIME to time,
-            Constants.FIELD_STATUS to Constants.STATUS_PRESENT
-        )
-
-        val ref = db.collection(Constants.ATTENDANCE_COLLECTION)
-            .document(uid)
-            .collection("records")
-
-        // aynı gün aynı dersi tekrar ekleme kontrolü
-        ref.whereEqualTo("course", course)
-            .whereEqualTo(Constants.FIELD_DATE, date)
-            .get()
-            .addOnSuccessListener { result ->
-                if (!result.isEmpty) {
-                    onResult(false, "Attendance already exists today")
-                    return@addOnSuccessListener
-                }
-
-                ref.add(data)
-                    .addOnSuccessListener { onResult(true, null) }
-                    .addOnFailureListener { e -> onResult(false, e.message) }
+            r.onSuccess {
+                // (Senin CameraScreen’de ayrıca status collection yazıyorsun ya)
+                runCatching { attendanceRepository.setStatusPresent(course, uid) }
+                onResult(true, null)
+            }.onFailure { e ->
+                onResult(false, e.message)
             }
+        }
     }
 
 

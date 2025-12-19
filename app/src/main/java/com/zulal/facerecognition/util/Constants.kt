@@ -20,4 +20,9 @@ object Constants {
     const val ROLE_STUDENT = "Student"
     const val ROLE_PROFESSOR = "Professor"
     const val FIELD_ROLE = "role"
+    const val FIELD_REGISTER_STATE = "registerState"
+    const val STATE_PENDING_FACE = "PENDING_FACE"
+    const val STATE_COMPLETED = "COMPLETED"
+
+
 }

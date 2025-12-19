@@ -25,6 +25,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.zulal.facerecognition.R
 import com.zulal.facerecognition.util.Constants
 
+import com.google.firebase.firestore.ListenerRegistration
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,8 +33,10 @@ fun AttendanceHistoryScreen(
     navController: NavController,
     courseName: String
 ) {
-    val auth = FirebaseAuth.getInstance()
-    val uid = auth.currentUser?.uid ?: return
+    val auth = remember { FirebaseAuth.getInstance() }
+    val db = remember { FirebaseFirestore.getInstance() }
+
+    val uid = auth.currentUser?.uid
 
     var studentName by remember { mutableStateOf("") }
     var attendanceList by remember { mutableStateOf<List<AttendanceRow>>(emptyList()) }
@@ -41,9 +44,19 @@ fun AttendanceHistoryScreen(
     var totalAbsent by remember { mutableStateOf(0) }
     var isSessionActive by remember { mutableStateOf(false) }
 
-    val db = FirebaseFirestore.getInstance()
+    LaunchedEffect(uid) {
+        if (uid == null) {
+            navController.navigate("login") {
+                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                launchSingleTop = true
+                restoreState = false
+            }
+        }
+    }
+    if (uid == null) return
 
-    LaunchedEffect(courseName) {
+    // Kullanıcı adı + kayıtları çek
+    LaunchedEffect(courseName, uid) {
         db.collection(Constants.USERS_COLLECTION).document(uid).get()
             .addOnSuccessListener { doc ->
                 studentName = doc.getString(Constants.FIELD_NAME) ?: ""
@@ -52,7 +65,7 @@ fun AttendanceHistoryScreen(
         db.collection(Constants.ATTENDANCE_COLLECTION)
             .document(uid)
             .collection("records")
-            .whereEqualTo(Constants.FIELD_COURSES, courseName)
+            .whereEqualTo("course", courseName)
             .get()
             .addOnSuccessListener { result ->
                 val records = result.documents.mapNotNull { d ->
@@ -67,13 +80,18 @@ fun AttendanceHistoryScreen(
                 totalAbsent = records.count { it.status == Constants.STATUS_ABSENT }
             }
     }
-
-    LaunchedEffect(courseName) {
-        db.collection(Constants.ATTENDANCE_SESSION_COLLECTION)
+    var reg by remember { mutableStateOf<ListenerRegistration?>(null) }
+    DisposableEffect(courseName) {
+        reg = db.collection(Constants.ATTENDANCE_SESSION_COLLECTION)
             .document(courseName)
             .addSnapshotListener { snap, _ ->
                 isSessionActive = snap?.getBoolean(Constants.FIELD_ACTIVE) == true
             }
+
+        onDispose {
+            reg?.remove()
+            reg = null
+        }
     }
 
     Scaffold(
@@ -95,7 +113,9 @@ fun AttendanceHistoryScreen(
                         onClick = {
                             auth.signOut()
                             navController.navigate("login") {
-                                popUpTo(0) { inclusive = true }
+                                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                launchSingleTop = true
+                                restoreState = false
                             }
                         }
                     ) {

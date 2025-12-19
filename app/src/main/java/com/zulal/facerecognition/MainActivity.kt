@@ -28,6 +28,8 @@ import com.zulal.facerecognition.ui.screen.SplashScreen
 import com.zulal.facerecognition.ui.screen.StudentsListScreen
 import com.zulal.facerecognition.viewmodel.FaceViewModel
 import com.zulal.facerecognition.viewmodel.FaceViewModelFactory
+import com.zulal.facerecognition.data.repository.AttendanceRepository
+
 
 class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
@@ -52,8 +54,10 @@ fun AppNavigator() {
     val dao = database.faceDao()
     val repository = RoomFaceRepository(dao)
 
+    val attendanceRepository = AttendanceRepository()
+
     val faceViewModel: FaceViewModel = viewModel(
-        factory = FaceViewModelFactory(repository)
+        factory = FaceViewModelFactory(repository, attendanceRepository)
     )
 
     NavHost(
