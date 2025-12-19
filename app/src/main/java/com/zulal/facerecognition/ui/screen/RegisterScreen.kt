@@ -47,6 +47,8 @@ fun RegisterScreen(
 
     var message by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    val isactive by remember { mutableStateOf("")
+    }
 
     // email otomatik doldur
     LaunchedEffect(isGoogleUser) {
@@ -281,10 +283,14 @@ fun navigateAfterRegister(navController: NavController, role: String) {
     if (role == "Professor") {
         navController.navigate("adminhome") {
             popUpTo("register") { inclusive = true }
+            launchSingleTop = true
         }
     } else {
-        navController.navigate("camera/register/") {
+        navController.navigate("camera/register/_") {
             popUpTo("register") { inclusive = true }
+            launchSingleTop = true
         }
+
     }
 }
+

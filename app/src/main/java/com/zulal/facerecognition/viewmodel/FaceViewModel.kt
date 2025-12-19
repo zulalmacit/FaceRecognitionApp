@@ -71,20 +71,39 @@ class FaceViewModel(
         }
     }
 
+
     @RequiresApi(Build.VERSION_CODES.O)
     fun addAttendance(uid: String, course: String, onResult: (Boolean, String?) -> Unit) {
-        viewModelScope.launch {
-            val r = attendanceRepository.addAttendanceOncePerDay(uid, course)
+        val date = java.time.LocalDate.now().toString()
+        val time = java.time.LocalTime.now().withNano(0).toString()
 
-            r.onSuccess {
-                // (Senin CameraScreen’de ayrıca status collection yazıyorsun ya)
-                runCatching { attendanceRepository.setStatusPresent(course, uid) }
-                onResult(true, null)
-            }.onFailure { e ->
-                onResult(false, e.message)
+        val data = mapOf(
+            "uid" to uid,
+            "course" to course,
+            Constants.FIELD_DATE to date,
+            Constants.FIELD_TIME to time,
+            Constants.FIELD_STATUS to Constants.STATUS_PRESENT
+        )
+
+        val ref = db.collection(Constants.ATTENDANCE_COLLECTION)
+            .document(uid)
+            .collection("records")
+            .document("$course-$date")
+
+        ref.get()
+            .addOnSuccessListener { doc ->
+                if (doc.exists()) {
+                    onResult(false, "Attendance already exists today")
+                    return@addOnSuccessListener
+                }
+
+                ref.set(data)
+                    .addOnSuccessListener { onResult(true, null) }
+                    .addOnFailureListener { e -> onResult(false, e.message) }
             }
-        }
+            .addOnFailureListener { e -> onResult(false, e.message) }
     }
+
 
 
 

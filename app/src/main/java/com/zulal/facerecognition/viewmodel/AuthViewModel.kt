@@ -43,7 +43,8 @@ class AuthViewModel : ViewModel() {
             "studentId" to studentId,
             Constants.FIELD_COURSES to courses,
             Constants.FIELD_ROLE to role,
-            "loginMethod" to "google"
+            "loginMethod" to "google",
+            "faceVerified" to (role == "Professor")
         )
 
         db.collection(Constants.USERS_COLLECTION).document(uid)
@@ -102,7 +103,8 @@ class AuthViewModel : ViewModel() {
                 Constants.FIELD_NAME to name,
                 "studentId" to studentId,
                 Constants.FIELD_COURSES to courses,
-                Constants.FIELD_ROLE to role
+                Constants.FIELD_ROLE to role,
+                "faceVerified" to (role == "Professor")
             )
 
             db.collection(Constants.USERS_COLLECTION).document(uid)
@@ -142,8 +144,5 @@ class AuthViewModel : ViewModel() {
             onResult(false, e.message)
         }
     }
-
-
-
 
 }

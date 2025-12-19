@@ -1,6 +1,7 @@
 package com.zulal.facerecognition.ui.screen
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.os.Build
 import android.widget.Toast
@@ -15,23 +16,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import com.google.android.gms.location.LocationServices
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.SetOptions
 import com.zulal.facerecognition.data.FaceNetModel
 import com.zulal.facerecognition.ui.component.CameraPreview
-import com.zulal.facerecognition.viewmodel.FaceViewModel
-import kotlin.math.*
-import android.annotation.SuppressLint
-import com.google.firebase.firestore.SetOptions
-import com.zulal.facerecognition.util.getCurrentSsid
-import kotlinx.coroutines.launch // CoroutineScope içinde kullanmak için
-import kotlinx.coroutines.delay // Gecikme için
 import com.zulal.facerecognition.util.Constants
+import com.zulal.facerecognition.util.getCurrentSsid
+import com.zulal.facerecognition.viewmodel.FaceViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.*
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+
 
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,74 +50,56 @@ fun CameraScreen(
     mode: String // "register" veya "attendance"
 ) {
     val context = LocalContext.current
-    val view = LocalView.current // Gecikmeli işlem için gerekli
     val lifecycleOwner = LocalLifecycleOwner.current
-    val db = FirebaseFirestore.getInstance()
-    val uid = FirebaseAuth.getInstance().currentUser?.uid
+    val db = remember { FirebaseFirestore.getInstance() }
+    val auth = remember { FirebaseAuth.getInstance() }
+
+    val uid = auth.currentUser?.uid
     val faceNetModel = remember { FaceNetModel(context) }
 
     var hasCameraPermission by remember { mutableStateOf(false) }
     var hasLocationPermission by remember { mutableStateOf(false) }
     var isSessionActive by remember { mutableStateOf(false) }
 
-    //  Snackbar ve Coroutine State'leri
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    // İşlemin devam edip etmediğini kontrol
-    var attendanceSubmitted by remember { mutableStateOf(false) }
+    var processing by remember { mutableStateOf(false) }
 
-    // Birkaç kareden embedding toplamak için listeler
     val registerEmbeddings = remember { mutableStateListOf<FloatArray>() }
     val attendanceEmbeddings = remember { mutableStateListOf<FloatArray>() }
-    val framesNeeded = 5 // 5 kareden ortalama
+    val framesNeeded = 5
 
-    // Kamera izni
+    val tfliteMutex = remember { Mutex() }
+    var embedJob by remember { mutableStateOf<Job?>(null) }
+
+
+    // permissions
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         hasCameraPermission = granted
-        if (!granted) {
-            Toast.makeText(context, "Camera permission required", Toast.LENGTH_SHORT).show()
-        }
+        if (!granted) Toast.makeText(context, "Camera permission required", Toast.LENGTH_SHORT).show()
     }
 
-    // Konum izinleri
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val fine = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
         val coarse = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         hasLocationPermission = fine || coarse
-
-        if (!hasLocationPermission) {
-            Toast.makeText(context, "Location permission required", Toast.LENGTH_SHORT).show()
-        }
+        if (!hasLocationPermission) Toast.makeText(context, "Location permission required", Toast.LENGTH_SHORT).show()
     }
 
-    // İlk açılışta izinleri kontrol et
     LaunchedEffect(Unit) {
-        val cameraGranted = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.CAMERA
-        ) == PackageManager.PERMISSION_GRANTED
-
-        val fineGranted = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        val coarseGranted = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
+        val cameraGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        val fineGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val coarseGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
         hasCameraPermission = cameraGranted
         hasLocationPermission = fineGranted || coarseGranted
 
-        if (!cameraGranted) {
-            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-        }
+        if (!cameraGranted) cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
 
         if (!hasLocationPermission) {
             locationPermissionLauncher.launch(
@@ -124,9 +112,10 @@ fun CameraScreen(
     }
 
     // Attendance aktiflik
+    var sessionReg by remember { mutableStateOf<ListenerRegistration?>(null) }
     if (mode == "attendance" && courseName.isNotBlank()) {
-        LaunchedEffect(courseName) {
-            db.collection(Constants.ATTENDANCE_SESSION_COLLECTION)
+        DisposableEffect(courseName) {
+            sessionReg = db.collection(Constants.ATTENDANCE_SESSION_COLLECTION)
                 .document(courseName)
                 .addSnapshotListener { snap, _ ->
                     isSessionActive = snap?.getBoolean(Constants.FIELD_ACTIVE) == true
@@ -145,12 +134,17 @@ fun CameraScreen(
     // dispose cleanup
     DisposableEffect(Unit) {
         onDispose {
+            embedJob?.cancel()
+            embedJob = null
+
             processing = false
             registerEmbeddings.clear()
             attendanceEmbeddings.clear()
+
             runCatching { faceNetModel.close() }
         }
     }
+
 
     // helper register iptal
     fun cancelRegisterAndGoLogin() {
@@ -190,7 +184,7 @@ fun CameraScreen(
                     lifecycleOwner = lifecycleOwner,
                     faceViewModel = faceViewModel,
                     onFaceEmbeddingDetected = { rawEmbedding ->
-                        if (attendanceSubmitted) return@CameraPreview
+                        if (processing) return@CameraPreview
 
                         scope.launch {
                             val emb = withContext(Dispatchers.Default) {
@@ -198,32 +192,23 @@ fun CameraScreen(
                             }
                             registerEmbeddings.add(emb)
 
-
-                        if (registerEmbeddings.size == 1) {
-                            scope.launch {
+                            if (registerEmbeddings.size == 1) {
                                 snackbarHostState.showSnackbar(
                                     message = "Lütfen yüzünüzü sabit tutun, birkaç kare alıyorum...",
-                                    duration = SnackbarDuration.Indefinite
+                                    duration = SnackbarDuration.Short
                                 )
-                                // 1.5 saniye sonra Snackbar'ı kapat
-                                delay(1500)
-                                snackbarHostState.currentSnackbarData?.dismiss()
                             }
-                        }
 
-                        // Yeterli kare gelmediyse sadece topla
-                        if (registerEmbeddings.size < framesNeeded) {
-                            return@CameraPreview
-                        }
+                            if (registerEmbeddings.size < framesNeeded) return@launch
 
-                        attendanceSubmitted = true
+                            processing = true
 
-                        val uidSafe = uid ?: run {
-                            Toast.makeText(context, "User not found", Toast.LENGTH_SHORT).show()
-                            attendanceSubmitted = false
-                            registerEmbeddings.clear()
-                            return@CameraPreview
-                        }
+                            val uidSafe = uid ?: run {
+                                Toast.makeText(context, "User not found", Toast.LENGTH_SHORT).show()
+                                processing = false
+                                registerEmbeddings.clear()
+                                return@launch
+                            }
 
                             val avgEmbedding = withContext(Dispatchers.Default) {
                                 averageEmbeddings(registerEmbeddings.toList())
@@ -240,10 +225,10 @@ fun CameraScreen(
 
                                         delay(800)
                                         navController.navigate("courses") {
-                                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                            popUpTo(0) { inclusive = false }
                                             launchSingleTop = true
-                                            restoreState = false
                                         }
+
                                     } else {
                                         Toast.makeText(context, "Error saving face data", Toast.LENGTH_SHORT).show()
                                         delay(800)
@@ -257,14 +242,14 @@ fun CameraScreen(
                 )
             }
 
-            // ATTENDANCE MODU
+            //ATTENDANCE MODU
             else if (mode == "attendance" && hasCameraPermission && isSessionActive) {
                 CameraPreview(
                     modifier = Modifier.fillMaxSize(),
                     lifecycleOwner = lifecycleOwner,
                     faceViewModel = faceViewModel,
                     onFaceEmbeddingDetected = { rawEmbedding ->
-                        if (attendanceSubmitted) return@CameraPreview
+                        if (processing) return@CameraPreview
 
                         scope.launch {
                             val emb = withContext(Dispatchers.Default) {
@@ -272,14 +257,11 @@ fun CameraScreen(
                             }
                             attendanceEmbeddings.add(emb)
 
-                        if (attendanceEmbeddings.size == 1) {
-                            scope.launch {
+                            if (attendanceEmbeddings.size == 1) {
                                 snackbarHostState.showSnackbar(
                                     message = "Yüzünüzü kutunun içinde sabit tutun, birkaç kare alıyorum...",
-                                    duration = SnackbarDuration.Indefinite
+                                    duration = SnackbarDuration.Short
                                 )
-                                delay(1500)
-                                snackbarHostState.currentSnackbarData?.dismiss()
                             }
 
                             if (attendanceEmbeddings.size < framesNeeded) return@launch
@@ -292,200 +274,141 @@ fun CameraScreen(
                                 return@launch
                             }
 
-                        if (attendanceEmbeddings.size < framesNeeded) {
-                            return@CameraPreview
-                        }
+                            val detectedEmbedding = withContext(Dispatchers.Default) {
+                                averageEmbeddings(attendanceEmbeddings.toList())
+                            }
 
-                        attendanceSubmitted = true
-
-                        val uidSafe = uid ?: return@CameraPreview
-                        val detectedEmbedding = averageEmbeddings(attendanceEmbeddings.toList())
-
-                        db.collection(Constants.USERS_COLLECTION).document(uidSafe).get()
-                            .addOnSuccessListener { doc ->
-                                val stored = doc.get(Constants.FIELD_FACE_EMBEDDING) as? List<Double>
-                                if (stored == null) {
-                                    Toast.makeText(
-                                        context,
-                                        "No face data found.",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                    // BAŞARISIZ:geri git
-                                    view.postDelayed({
-                                        attendanceSubmitted = false
-                                        attendanceEmbeddings.clear()
-                                        navController.popBackStack()
-                                    }, 1500)
-                                    return@addOnSuccessListener
-                                }
-
-                                val storedArr =
-                                    stored.map { it.toFloat() }.toFloatArray()
-                                val similarity =
-                                    cosineSimilarity(storedArr, detectedEmbedding)
-
-                                if (similarity >= 0.8f) {
-
-                                    // İzin kontrolleri (runtime)
-                                    val fineGrantedNow = ContextCompat.checkSelfPermission(
-                                        context,
-                                        Manifest.permission.ACCESS_FINE_LOCATION
-                                    ) == PackageManager.PERMISSION_GRANTED
-
-                                    val coarseGrantedNow = ContextCompat.checkSelfPermission(
-                                        context,
-                                        Manifest.permission.ACCESS_COARSE_LOCATION
-                                    ) == PackageManager.PERMISSION_GRANTED
-
-                                    if (!fineGrantedNow && !coarseGrantedNow) {
-                                        Toast.makeText(
-                                            context,
-                                            "Location permission required.",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                        attendanceSubmitted = false
+                            // stored embedding'i USERS_COLLECTION'dan çek
+                            db.collection(Constants.USERS_COLLECTION).document(uidSafe).get()
+                                .addOnSuccessListener { doc ->
+                                    val stored = doc.get(Constants.FIELD_FACE_EMBEDDING) as? List<Double>
+                                    if (stored == null) {
+                                        Toast.makeText(context, "No face data found.", Toast.LENGTH_LONG).show()
+                                        scope.launch {
+                                            delay(800)
+                                            processing = false
+                                            attendanceEmbeddings.clear()
+                                            navController.popBackStack()
+                                        }
                                         return@addOnSuccessListener
                                     }
 
-                                    val fused =
-                                        LocationServices.getFusedLocationProviderClient(
-                                            context
-                                        )
+                                    val storedArr = stored.map { it.toFloat() }.toFloatArray()
+                                    val similarity = cosineSimilarity(storedArr, detectedEmbedding)
 
-                                    fused.lastLocation.addOnSuccessListener { studentLoc ->
-                                        if (studentLoc == null) {
-                                            Toast.makeText(
-                                                context,
-                                                "Location unavailable.",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                            attendanceSubmitted = false
+                                    if (similarity >= 0.8f) {
+                                        val fineGrantedNow = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                                        val coarseGrantedNow = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+                                        if (!fineGrantedNow && !coarseGrantedNow) {
+                                            Toast.makeText(context, "Location permission required.", Toast.LENGTH_SHORT).show()
+                                            processing = false
                                             return@addOnSuccessListener
                                         }
 
-                                        db.collection(Constants.ATTENDANCE_SESSION_COLLECTION)
-                                            .document(courseName)
-                                            .get()
-                                            .addOnSuccessListener { sess ->
-                                                val profLat = sess.getDouble(Constants.PROF_LAT)
-                                                val profLng = sess.getDouble(Constants.PROF_LNG)
-                                                // SSID'yi Firestore'dan okur
-                                                val allowedSsid =
-                                                    sess.getString(Constants.FIELD_ALLOWED_SSID)
+                                        val fused = LocationServices.getFusedLocationProviderClient(context)
+                                        fused.lastLocation.addOnSuccessListener { studentLoc ->
+                                            if (studentLoc == null) {
+                                                Toast.makeText(context, "Location unavailable.", Toast.LENGTH_SHORT).show()
+                                                processing = false
+                                                return@addOnSuccessListener
+                                            }
 
-                                                if (profLat == null || profLng == null) {
-                                                    Toast.makeText(
-                                                        context,
-                                                        "Professor location missing.",
-                                                        Toast.LENGTH_SHORT
-                                                    ).show()
-                                                    attendanceSubmitted = false
-                                                    return@addOnSuccessListener
-                                                }
+                                            db.collection(Constants.ATTENDANCE_SESSION_COLLECTION)
+                                                .document(courseName)
+                                                .get()
+                                                .addOnSuccessListener { sess ->
+                                                    val profLat = sess.getDouble(Constants.PROF_LAT)
+                                                    val profLng = sess.getDouble(Constants.PROF_LNG)
+                                                    val allowedSsid = sess.getString(Constants.FIELD_ALLOWED_SSID)
 
-                                                // Şu anki Wi-Fi SSID
-                                                val currentSsid = getCurrentSsid(context)
-
-                                                // Eğer allowedSsid boş değilse Wi-Fi kontrolü yap
-                                                if (!allowedSsid.isNullOrBlank()) {
-                                                    if (currentSsid == null) {
-                                                        Toast.makeText(
-                                                            context,
-                                                            "Wi-Fi info unavailable.",
-                                                            Toast.LENGTH_LONG
-                                                        ).show()
-                                                        attendanceSubmitted = false
+                                                    if (profLat == null || profLng == null) {
+                                                        Toast.makeText(context, "Professor location missing.", Toast.LENGTH_SHORT).show()
+                                                        processing = false
                                                         return@addOnSuccessListener
                                                     }
 
-                                                    if (currentSsid != allowedSsid) {
-                                                        Toast.makeText(
-                                                            context,
-                                                            "You are not on the classroom Wi-Fi.",
-                                                            Toast.LENGTH_LONG
-                                                        ).show()
-                                                        attendanceSubmitted = false
-                                                        view.post { navController.popBackStack() }
-                                                        return@addOnSuccessListener
+                                                    val currentSsid = getCurrentSsid(context)
+
+                                                    if (!allowedSsid.isNullOrBlank()) {
+                                                        if (currentSsid == null) {
+                                                            Toast.makeText(context, "Wi-Fi info unavailable.", Toast.LENGTH_LONG).show()
+                                                            processing = false
+                                                            return@addOnSuccessListener
+                                                        }
+                                                        if (currentSsid != allowedSsid) {
+                                                            Toast.makeText(context, "You are not on the classroom Wi-Fi.", Toast.LENGTH_LONG).show()
+                                                            scope.launch {
+                                                                processing = false
+                                                                attendanceEmbeddings.clear()
+                                                                navController.popBackStack()
+                                                            }
+                                                            return@addOnSuccessListener
+                                                        }
                                                     }
-                                                }
 
-                                                // Mesafe kontrolü
-                                                val dist = distanceBetween(
-                                                    studentLoc.latitude,
-                                                    studentLoc.longitude,
-                                                    profLat,
-                                                    profLng
-                                                )
-
-                                                if (dist <= 5f) {
-
-                                                    // Yüz Başarılı: Yoklama Kaydı
-                                                    val now = java.time.LocalDateTime.now()
-                                                    val data = mapOf(
-                                                        "course" to courseName,
-                                                        Constants.FIELD_DATE to now.toLocalDate().toString(),
-                                                        Constants.FIELD_TIME to now.toLocalTime().toString()
-                                                            .substring(0, 5),
-                                                        Constants.FIELD_STATUS to Constants.STATUS_PRESENT
+                                                    val dist = distanceBetween(
+                                                        studentLoc.latitude,
+                                                        studentLoc.longitude,
+                                                        profLat,
+                                                        profLng
                                                     )
 
-                                                    db.collection(Constants.ATTENDANCE_COLLECTION)
-                                                        .document(uidSafe)
-                                                        .collection("records")
-                                                        .add(data)
-
-                                                    db.collection(Constants.ATTENDANCE_STATUS_COLLECTION)
-                                                        .document(courseName)
-                                                        .collection(Constants.ROLE_STUDENT)
-                                                        .document(uidSafe)
-                                                        .set(
-                                                            mapOf(Constants.FIELD_STATUS to Constants.STATUS_PRESENT),
-                                                            SetOptions.merge()
-                                                        )
-
-                                                    Toast.makeText(
-                                                        context,
-                                                        "Attendance Recorded ",
-                                                        Toast.LENGTH_SHORT
-                                                    ).show()
-
-                                                    //  BAŞARILI
-                                                    view.postDelayed({
-                                                        attendanceSubmitted = false
-                                                        attendanceEmbeddings.clear()
-                                                        navController.navigate("attendance/$courseName") {
-                                                            popUpTo("courses") { inclusive = false }
+                                                    if (dist <= 5f) {
+                                                        faceViewModel.addAttendance(uidSafe, courseName) { ok, msg ->
+                                                            scope.launch {
+                                                                if (ok) {
+                                                                    Toast.makeText(context, "Attendance Recorded", Toast.LENGTH_SHORT).show()
+                                                                    delay(800)
+                                                                    processing = false
+                                                                    attendanceEmbeddings.clear()
+                                                                    navController.navigate("attendance/$courseName") {
+                                                                        popUpTo("courses") { inclusive = false }
+                                                                        launchSingleTop = true
+                                                                    }
+                                                                } else {
+                                                                    Toast.makeText(context, msg ?: "Attendance failed", Toast.LENGTH_LONG).show()
+                                                                    delay(800)
+                                                                    processing = false
+                                                                    attendanceEmbeddings.clear()
+                                                                    navController.popBackStack()
+                                                                }
+                                                            }
                                                         }
-                                                    }, 1500)
-                                                } else {
-                                                    Toast.makeText(
-                                                        context,
-                                                        "Too far (${dist.toInt()}m)",
-                                                        Toast.LENGTH_LONG
-                                                    ).show()
-                                                    view.post { navController.popBackStack() }
+                                                    } else {
+                                                        Toast.makeText(context, "Too far (${dist.toInt()}m)", Toast.LENGTH_LONG).show()
+                                                        scope.launch {
+                                                            processing = false
+                                                            attendanceEmbeddings.clear()
+                                                            navController.popBackStack()
+                                                        }
+                                                    }
                                                 }
-                                            }
+                                        }
+                                    } else {
+                                        Toast.makeText(context, "Face not recognized", Toast.LENGTH_LONG).show()
+                                        scope.launch {
+                                            delay(800)
+                                            processing = false
+                                            attendanceEmbeddings.clear()
+                                            navController.popBackStack()
+                                        }
                                     }
-                                } else {
-                                    Toast.makeText(
-                                        context,
-                                        "Face not recognized ",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                    //  BAŞARISIZ:geri git
-                                    view.postDelayed({
-                                        attendanceSubmitted = false
+                                }
+                                .addOnFailureListener {
+                                    scope.launch {
+                                        processing = false
                                         attendanceEmbeddings.clear()
                                         navController.popBackStack()
-                                    }, 1500)
+                                    }
                                 }
-                            }
+                        }
                     }
                 )
-            } else {
+            }
 
+            // waiting state
+            else {
                 Text(
                     text = "Camera: $hasCameraPermission | Location: $hasLocationPermission | Session: $isSessionActive",
                     modifier = Modifier
@@ -500,7 +423,8 @@ fun CameraScreen(
                 )
             }
 
-            if (attendanceSubmitted) {
+            // overlay
+            if (processing) {
                 Surface(
                     color = Color.Black.copy(alpha = 0.5f),
                     modifier = Modifier.fillMaxSize()
@@ -522,7 +446,10 @@ fun CameraScreen(
             }
 
             Button(
-                onClick = { view.post { navController.popBackStack() } },
+                onClick = {
+                    if (mode == "register") cancelRegisterAndGoLogin()
+                    else navController.popBackStack()
+                },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(16.dp)
@@ -533,7 +460,6 @@ fun CameraScreen(
         }
     }
 }
-
 // Haversine mesafe hesabı
 fun distanceBetween(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Float {
     val R = 6371000.0
@@ -560,19 +486,12 @@ fun normalize(vector: FloatArray): FloatArray {
 
 fun averageEmbeddings(list: List<FloatArray>): FloatArray {
     if (list.isEmpty()) return FloatArray(0)
-
     val length = list[0].size
     val sum = FloatArray(length)
-
     for (emb in list) {
-        for (i in 0 until length) {
-            sum[i] += emb[i]
-        }
+        for (i in 0 until length) sum[i] += emb[i]
     }
-
     val n = list.size.toFloat()
-    for (i in 0 until length) {
-        sum[i] /= n
-    }
+    for (i in 0 until length) sum[i] /= n
     return sum
 }

@@ -34,37 +34,36 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.zulal.facerecognition.R
 import com.zulal.facerecognition.util.Constants
-
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminHomeScreen(navController: NavController) {
 
-    val auth = FirebaseAuth.getInstance()
-    val user = auth.currentUser
-    val db = FirebaseFirestore.getInstance()
+    val auth = remember { FirebaseAuth.getInstance() }
+    val db = remember { FirebaseFirestore.getInstance() }
 
+    val user = auth.currentUser
     var professorName by remember { mutableStateOf("") }
     var courseList by remember { mutableStateOf<List<String>>(emptyList()) }
 
-    user?.let { firebaseUser ->
-        val uid = firebaseUser.uid
+    LaunchedEffect(user) {
+        if (user == null) {
+            navController.navigate("login") {
+                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                launchSingleTop = true
+                restoreState = false
+            }
+            return@LaunchedEffect
+        }
 
-        LaunchedEffect(Unit) {
-            db.collection(Constants.USERS_COLLECTION).document(uid)
-                .get()
-                .addOnSuccessListener { doc ->
-                    professorName = doc.getString(Constants.FIELD_NAME) ?: ""
-                    val courses = doc.get(Constants.FIELD_COURSES) as? List<String> ?: emptyList()
-                    courseList = courses
-                }
-        }
-    } ?: run {
-        navController.navigate("login") {
-            popUpTo(0) { inclusive = true }
-        }
-        return
+        db.collection(Constants.USERS_COLLECTION).document(user.uid)
+            .get()
+            .addOnSuccessListener { doc ->
+                professorName = doc.getString(Constants.FIELD_NAME) ?: ""
+                courseList = doc.get(Constants.FIELD_COURSES) as? List<String> ?: emptyList()
+            }
     }
+
+    if (user == null) return
 
     Scaffold(
         topBar = {
@@ -74,7 +73,9 @@ fun AdminHomeScreen(navController: NavController) {
                     IconButton(onClick = {
                         auth.signOut()
                         navController.navigate("login") {
-                            popUpTo(0) { inclusive = true }
+                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                            launchSingleTop = true
+                            restoreState = false
                         }
                     }) {
                         Icon(
@@ -118,9 +119,7 @@ fun AdminHomeScreen(navController: NavController) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 6.dp)
-                            .clickable {
-                                navController.navigate("studentsList/$course")
-                            }
+                            .clickable { navController.navigate("studentsList/$course") }
                     ) {
                         Row(
                             modifier = Modifier.padding(16.dp),
