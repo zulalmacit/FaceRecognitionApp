@@ -1,4 +1,111 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">FaceRecognition</string>
+
+    <!-- Login -->
+    <string name="login_title">LOGIN</string>
+    <string name="enter_your_mail">Enter your mail</string>
+    <string name="password">Password</string>
+    <string name="login">Login</string>
+
+    <string name="fill_email_password_tr">Lütfen e-mail ve şifre girin.</string>
+    <string name="login_failed">Login failed</string>
+    <string name="unknown_role">Unknown role</string>
+    <string name="google_sign_in_failed">Google Sign-In Failed</string>
+
+    <string name="no_account_tr">Hesabın yok mu?</string>
+    <string name="sign_up_tr">Kayıt Ol</string>
+    <string name="google_sign_in_content_desc">Sign in with Google</string>
+
+    <!-- Register -->
+    <string name="register_title">Register</string>
+    <string name="select_role">Select Role</string>
+
+    <string name="email">Email</string>
+    <string name="password_min_6">Password (min 6 chars)</string>
+    <string name="enter_name">Enter your name</string>
+    <string name="enter_student_id">Enter your student id</string>
+
+    <string name="select_courses">Select Courses</string>
+    <string name="choose_courses">Choose Courses</string>
+    <string name="done">Done</string>
+
+    <string name="saving">Saving...</string>
+    <string name="continue_text">Continue</string>
+
+    <string name="fill_all_fields">Please fill all fields correctly.</string>
+    <string name="google_profile_save_error">Google profile save error</string>
+    <string name="registration_failed">Registration failed</string>
+
+    <!-- Courses -->
+    <string name="your_courses">Your Courses</string>
+    <string name="no_courses_found">No courses found.</string>
+
+
+    <string name="face_required_title">Yüz Kaydı Gerekli</string>
+    <string name="face_required_message">Yüzünüz henüz kaydedilmemiştir.\nDevam edebilmek için önce yüz verilerinizi kaydetmeniz gerekmektedir.</string>
+
+
+    <string name="logout">Logout</string>
+
+    <!-- CameraScreen -->
+    <string name="face_recognition_title">Face Recognition</string>
+
+    <string name="camera_permission_required">Camera permission required</string>
+    <string name="location_permission_required">Location permission required</string>
+
+    <string name="attendance_not_started_by_professor">Attendance not started by professor.</string>
+
+    <string name="keep_face_still_register">Lütfen yüzünüzü sabit tutun, birkaç kare alıyorum...</string>
+    <string name="keep_face_in_box_attendance">Yüzünüzü kutunun içinde sabit tutun, birkaç kare alıyorum...</string>
+
+    <string name="user_not_found">User not found</string>
+    <string name="face_data_saved_success">Face data saved successfully!</string>
+    <string name="error_saving_face_data">Error saving face data</string>
+
+    <string name="no_face_data_found">No face data found.</string>
+
+    <string name="location_unavailable">Location unavailable.</string>
+    <string name="professor_location_missing">Professor location missing.</string>
+
+    <string name="wifi_info_unavailable">Wi-Fi info unavailable.</string>
+    <string name="not_on_classroom_wifi">You are not on the classroom Wi-Fi.</string>
+
+    <string name="attendance_recorded">Attendance Recorded</string>
+    <string name="attendance_failed">Attendance failed</string>
+
+    <string name="too_far">Too far (%1$dm)</string>
+    <string name="face_not_recognized">Face not recognized</string>
+
+    <string name="waiting_status">Camera: %1$s | Location: %2$s | Session: %3$s</string>
+    <string name="waiting_for_permissions_or_professor">Waiting for permissions or professor.</string>
+
+    <string name="processing_face">Yüz işleniyor...</string>
+
+    <string name="back">Back</string>
+
+    <!-- Students list -->
+    <string name="students_in_this_course">Students in this course:</string>
+
+    <string name="location_permission_required_tr">Konum izni gerekli!</string>
+    <string name="location_could_not_be_taken_tr">Konum alınamadı.</string>
+    <string name="location_could_not_be_taken_short_tr">Konum alınamadı</string>
+    <string name="attendance_started">Attendance started.</string>
+    <string name="attendance_stopped">Attendance stopped.</string>
+    <string name="start_attendance">Start Attendance</string>
+    <string name="stop_attendance">Stop Attendance</string>
+
+
+    <!-- Attendance History -->
+    <string name="attendance_history_title">Attendance History</string>
+    <string name="total_present">Total Present</string>
+    <string name="total_absent">Total Absent</string>
+    <string name="no_records_for_course">No records for this course.</string>
+    <string name="add_attendance">ADD ATTENDANCE</string>
+    <string name="waiting_teacher_to_start">Waiting for Teacher to Start</string>
+
+    <!-- Admin Home -->
+    <string name="professor_dashboard_title">Professor Dashboard</string>
+    <string name="welcome_professor">Welcome, %1$s</string>
+
 </resources>

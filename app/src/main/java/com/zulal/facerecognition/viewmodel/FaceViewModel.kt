@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.zulal.facerecognition.data.model.AttendanceStatus
 import com.zulal.facerecognition.data.model.FaceEntity
 import com.zulal.facerecognition.data.repository.AttendanceRepository
 import com.zulal.facerecognition.data.repository.IFaceRepository
@@ -82,7 +83,7 @@ class FaceViewModel(
             "course" to course,
             Constants.FIELD_DATE to date,
             Constants.FIELD_TIME to time,
-            Constants.FIELD_STATUS to Constants.STATUS_PRESENT
+            Constants.FIELD_STATUS to AttendanceStatus.PRESENT.value
         )
 
         val ref = db.collection(Constants.ATTENDANCE_COLLECTION)

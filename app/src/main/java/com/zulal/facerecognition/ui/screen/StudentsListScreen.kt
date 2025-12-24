@@ -21,9 +21,13 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import android.annotation.SuppressLint
-import androidx.compose.ui.unit.Constraints
+import com.zulal.facerecognition.data.model.AttendanceStatus
+import com.zulal.facerecognition.data.model.UserRole
 import com.zulal.facerecognition.util.Constants
 import com.zulal.facerecognition.util.getCurrentSsid
+import androidx.compose.ui.res.stringResource
+import com.zulal.facerecognition.R
+
 
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,14 +42,15 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
 
         db.collection(Constants.USERS_COLLECTION)
             .whereArrayContains(Constants.FIELD_COURSES, courseName)
-            .whereEqualTo(Constants.FIELD_ROLE, Constants.ROLE_STUDENT)
+            .whereEqualTo(Constants.FIELD_ROLE, UserRole.STUDENT.value)
             .get()
             .addOnSuccessListener { result ->
                 studentMap.clear()
                 result.documents.forEach { doc ->
                     val uid = doc.id
                     val name = doc.getString(Constants.FIELD_NAME) ?: "Unknown"
-                    studentMap[uid] = StudentItem(uid, name, Constants.STATUS_ABSENT)
+                    studentMap[uid] = StudentItem(uid, name, AttendanceStatus.ABSENT)
+
                 }
             }
 
@@ -57,11 +62,13 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
 
         db.collection(Constants.ATTENDANCE_STATUS_COLLECTION)
             .document(courseName)
-            .collection(Constants.ROLE_STUDENT)
+            .collection(UserRole.STUDENT.value)
             .addSnapshotListener { snap, _ ->
                 snap?.documents?.forEach { d ->
                     val uid = d.id
-                    val status = d.getString(Constants.FIELD_STATUS) ?: Constants.STATUS_ABSENT
+                    val status = AttendanceStatus.from(d.getString(Constants.FIELD_STATUS))
+                        ?: AttendanceStatus.ABSENT
+
                     studentMap[uid]?.let { old ->
                         studentMap[uid] = old.copy(status = status)
                     }
@@ -89,7 +96,7 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Students in this course:", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.students_in_this_course), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(10.dp))
 
             val students = studentMap.values.sortedBy { it.name.lowercase() }
@@ -116,7 +123,7 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
                     if (fine != PackageManager.PERMISSION_GRANTED &&
                         coarse != PackageManager.PERMISSION_GRANTED
                     ) {
-                        Toast.makeText(context, "Konum izni gerekli!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.location_permission_required_tr), Toast.LENGTH_SHORT).show()
                         return@Button
                     }
 
@@ -125,7 +132,7 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
                             val lat = loc?.latitude
                             val lng = loc?.longitude
                             if (lat == null || lng == null) {
-                                Toast.makeText(context, "Konum alınamadı.", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.location_could_not_be_taken_tr), Toast.LENGTH_SHORT).show()
                                 return@addOnSuccessListener
                             }
 
@@ -153,11 +160,11 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
                                 .document(courseName)
                                 .set(mapOf("initialized" to true), SetOptions.merge())
 
-                            Toast.makeText(context, "Attendance started.", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.attendance_started), Toast.LENGTH_SHORT).show()
                             isSessionActive = true
                         }
                         .addOnFailureListener {
-                            Toast.makeText(context, "Konum alınamadı", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.location_could_not_be_taken_short_tr), Toast.LENGTH_SHORT).show()
                         }
 
                 },
@@ -168,7 +175,7 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
                     .height(50.dp),
                 colors = ButtonDefaults.buttonColors(Color(0xFF4CAF50))
             ) {
-                Text("Start Attendance", color = Color.White)
+                Text(stringResource(R.string.start_attendance), color = Color.White)
             }
 
             Spacer(Modifier.height(10.dp))
@@ -182,13 +189,14 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
 
                     // Absent olanları yaz
                     students.forEach { s ->
-                        if (s.status != "present") {
+                        if (s.status != AttendanceStatus.PRESENT) {
                             db.collection(Constants.ATTENDANCE_STATUS_COLLECTION)
                                 .document(courseName)
-                                .collection(Constants.ROLE_STUDENT)
+                                .collection(UserRole.STUDENT.value)
                                 .document(s.uid)
-                                .set(mapOf(Constants.FIELD_STATUS to Constants.STATUS_ABSENT))
+                                .set(mapOf(Constants.FIELD_STATUS to AttendanceStatus.ABSENT.value))
                         }
+
                     }
 
                     Toast.makeText(navController.context, "Attendance stopped.", Toast.LENGTH_SHORT).show()
@@ -200,7 +208,7 @@ fun StudentsListScreen(navController: NavController, courseName: String) {
                     .height(50.dp),
                 colors = ButtonDefaults.buttonColors(Color(0xFFE53935))
             ) {
-                Text("Stop Attendance", color = Color.White)
+                Text(stringResource(R.string.stop_attendance), color = Color.White)
             }
 
             Spacer(Modifier.height(20.dp))
@@ -224,16 +232,18 @@ private fun StudentRow(student: StudentItem) {
                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
             )
             Text(
-                text = if (student.status == "present") "present" else "absent",
-                color = if (student.status == "present") Color(0xFF4CAF50) else Color(0xFFE53935),
+                text = student.status.value,
+                color = if (student.status == AttendanceStatus.PRESENT)
+                    Color(0xFF4CAF50) else Color(0xFFE53935),
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
             )
         }
     }
 }
 
+
 private data class StudentItem(
     val uid: String,
     val name: String,
-    val status: String
+    val status: AttendanceStatus
 )

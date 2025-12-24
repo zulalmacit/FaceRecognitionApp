@@ -25,6 +25,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
 import com.zulal.facerecognition.data.FaceNetModel
+import com.zulal.facerecognition.data.model.CameraMode
 import com.zulal.facerecognition.ui.component.CameraPreview
 import com.zulal.facerecognition.util.Constants
 import com.zulal.facerecognition.util.getCurrentSsid
@@ -37,6 +38,10 @@ import kotlin.math.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import androidx.compose.ui.res.stringResource
+import com.zulal.facerecognition.R
+import com.zulal.facerecognition.data.model.AttendanceStatus
+import com.zulal.facerecognition.data.model.UserRole
 
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -47,7 +52,7 @@ fun CameraScreen(
     navController: NavController,
     faceViewModel: FaceViewModel,
     courseName: String,
-    mode: String // "register" veya "attendance"
+    mode: CameraMode // "register" veya "attendance"
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -79,7 +84,8 @@ fun CameraScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         hasCameraPermission = granted
-        if (!granted) Toast.makeText(context, "Camera permission required", Toast.LENGTH_SHORT).show()
+        if (!granted) Toast.makeText(context, context.getString(R.string.camera_permission_required), Toast.LENGTH_SHORT).show()
+
     }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -88,7 +94,8 @@ fun CameraScreen(
         val fine = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
         val coarse = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         hasLocationPermission = fine || coarse
-        if (!hasLocationPermission) Toast.makeText(context, "Location permission required", Toast.LENGTH_SHORT).show()
+        if (!hasLocationPermission) Toast.makeText(context, context.getString(R.string.location_permission_required), Toast.LENGTH_SHORT).show()
+
     }
 
     LaunchedEffect(Unit) {
@@ -113,14 +120,14 @@ fun CameraScreen(
 
     // Attendance aktiflik
     var sessionReg by remember { mutableStateOf<ListenerRegistration?>(null) }
-    if (mode == "attendance" && courseName.isNotBlank()) {
+    if (mode == CameraMode.ATTENDANCE && courseName.isNotBlank()) {
         DisposableEffect(courseName) {
             sessionReg = db.collection(Constants.ATTENDANCE_SESSION_COLLECTION)
                 .document(courseName)
                 .addSnapshotListener { snap, _ ->
                     isSessionActive = snap?.getBoolean(Constants.FIELD_ACTIVE) == true
                     if (!isSessionActive) {
-                        Toast.makeText(context, "Attendance not started by professor.", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, context.getString(R.string.attendance_not_started_by_professor), Toast.LENGTH_LONG).show()
                     }
                 }
 
@@ -159,7 +166,7 @@ fun CameraScreen(
             try { auth.currentUser?.delete() } catch (_: Exception) {}
             auth.signOut()
 
-            navController.navigate("login") {
+            navController.navigate(Constants.ROUTE_LOGIN) {
                 popUpTo(navController.graph.startDestinationId) { inclusive = true }
                 launchSingleTop = true
                 restoreState = false
@@ -168,7 +175,7 @@ fun CameraScreen(
     }
 
     Scaffold(
-        topBar = { CenterAlignedTopAppBar(title = { Text("Face Recognition") }) },
+        topBar = { CenterAlignedTopAppBar(title = { Text(stringResource(R.string.face_recognition_title)) })},
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Box(
@@ -178,7 +185,7 @@ fun CameraScreen(
         ) {
 
             // REGISTER MODU
-            if (mode == "register" && hasCameraPermission) {
+            if (mode == CameraMode.REGISTER && hasCameraPermission) {
                 CameraPreview(
                     modifier = Modifier.fillMaxSize(),
                     lifecycleOwner = lifecycleOwner,
@@ -194,8 +201,8 @@ fun CameraScreen(
 
                             if (registerEmbeddings.size == 1) {
                                 snackbarHostState.showSnackbar(
-                                    message = "Lütfen yüzünüzü sabit tutun, birkaç kare alıyorum...",
-                                    duration = SnackbarDuration.Short
+                                    message = context.getString(R.string.keep_face_still_register),
+                                            duration = SnackbarDuration.Short
                                 )
                             }
 
@@ -204,7 +211,7 @@ fun CameraScreen(
                             processing = true
 
                             val uidSafe = uid ?: run {
-                                Toast.makeText(context, "User not found", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.user_not_found), Toast.LENGTH_SHORT).show()
                                 processing = false
                                 registerEmbeddings.clear()
                                 return@launch
@@ -221,16 +228,16 @@ fun CameraScreen(
                                             .document(uidSafe)
                                             .set(mapOf("faceVerified" to true), SetOptions.merge())
 
-                                        Toast.makeText(context, "Face data saved successfully!", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, context.getString(R.string.face_data_saved_success), Toast.LENGTH_SHORT).show()
 
                                         delay(800)
-                                        navController.navigate("courses") {
+                                        navController.navigate(Constants.ROUTE_COURSES) {
                                             popUpTo(0) { inclusive = false }
                                             launchSingleTop = true
                                         }
 
                                     } else {
-                                        Toast.makeText(context, "Error saving face data", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, context.getString(R.string.error_saving_face_data), Toast.LENGTH_SHORT).show()
                                         delay(800)
                                         processing = false
                                         registerEmbeddings.clear()
@@ -243,7 +250,7 @@ fun CameraScreen(
             }
 
             //ATTENDANCE MODU
-            else if (mode == "attendance" && hasCameraPermission && isSessionActive) {
+            else if (mode == CameraMode.ATTENDANCE && hasCameraPermission && isSessionActive)  {
                 CameraPreview(
                     modifier = Modifier.fillMaxSize(),
                     lifecycleOwner = lifecycleOwner,
@@ -259,8 +266,8 @@ fun CameraScreen(
 
                             if (attendanceEmbeddings.size == 1) {
                                 snackbarHostState.showSnackbar(
-                                    message = "Yüzünüzü kutunun içinde sabit tutun, birkaç kare alıyorum...",
-                                    duration = SnackbarDuration.Short
+                                    message = context.getString(R.string.keep_face_in_box_attendance),
+                                            duration = SnackbarDuration.Short
                                 )
                             }
 
@@ -283,7 +290,7 @@ fun CameraScreen(
                                 .addOnSuccessListener { doc ->
                                     val stored = doc.get(Constants.FIELD_FACE_EMBEDDING) as? List<Double>
                                     if (stored == null) {
-                                        Toast.makeText(context, "No face data found.", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(context, context.getString(R.string.no_face_data_found), Toast.LENGTH_LONG).show()
                                         scope.launch {
                                             delay(800)
                                             processing = false
@@ -301,7 +308,7 @@ fun CameraScreen(
                                         val coarseGrantedNow = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
                                         if (!fineGrantedNow && !coarseGrantedNow) {
-                                            Toast.makeText(context, "Location permission required.", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, context.getString(R.string.location_permission_required), Toast.LENGTH_SHORT).show()
                                             processing = false
                                             return@addOnSuccessListener
                                         }
@@ -309,7 +316,7 @@ fun CameraScreen(
                                         val fused = LocationServices.getFusedLocationProviderClient(context)
                                         fused.lastLocation.addOnSuccessListener { studentLoc ->
                                             if (studentLoc == null) {
-                                                Toast.makeText(context, "Location unavailable.", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, context.getString(R.string.location_unavailable), Toast.LENGTH_SHORT).show()
                                                 processing = false
                                                 return@addOnSuccessListener
                                             }
@@ -323,7 +330,7 @@ fun CameraScreen(
                                                     val allowedSsid = sess.getString(Constants.FIELD_ALLOWED_SSID)
 
                                                     if (profLat == null || profLng == null) {
-                                                        Toast.makeText(context, "Professor location missing.", Toast.LENGTH_SHORT).show()
+                                                        Toast.makeText(context, context.getString(R.string.professor_location_missing), Toast.LENGTH_SHORT).show()
                                                         processing = false
                                                         return@addOnSuccessListener
                                                     }
@@ -332,12 +339,12 @@ fun CameraScreen(
 
                                                     if (!allowedSsid.isNullOrBlank()) {
                                                         if (currentSsid == null) {
-                                                            Toast.makeText(context, "Wi-Fi info unavailable.", Toast.LENGTH_LONG).show()
+                                                            Toast.makeText(context, context.getString(R.string.wifi_info_unavailable), Toast.LENGTH_LONG).show()
                                                             processing = false
                                                             return@addOnSuccessListener
                                                         }
                                                         if (currentSsid != allowedSsid) {
-                                                            Toast.makeText(context, "You are not on the classroom Wi-Fi.", Toast.LENGTH_LONG).show()
+                                                            Toast.makeText(context, context.getString(R.string.not_on_classroom_wifi), Toast.LENGTH_LONG).show()
                                                             scope.launch {
                                                                 processing = false
                                                                 attendanceEmbeddings.clear()
@@ -358,16 +365,24 @@ fun CameraScreen(
                                                         faceViewModel.addAttendance(uidSafe, courseName) { ok, msg ->
                                                             scope.launch {
                                                                 if (ok) {
-                                                                    Toast.makeText(context, "Attendance Recorded", Toast.LENGTH_SHORT).show()
+                                                                    db.collection(Constants.ATTENDANCE_STATUS_COLLECTION)
+                                                                        .document(courseName)
+                                                                        .collection(UserRole.STUDENT.value)
+                                                                        .document(uidSafe)
+                                                                        .set(
+                                                                            mapOf(Constants.FIELD_STATUS to AttendanceStatus.PRESENT.value),
+                                                                            SetOptions.merge()
+                                                                        )
+                                                                    Toast.makeText(context, context.getString(R.string.attendance_recorded), Toast.LENGTH_SHORT).show()
                                                                     delay(800)
                                                                     processing = false
                                                                     attendanceEmbeddings.clear()
                                                                     navController.navigate("attendance/$courseName") {
-                                                                        popUpTo("courses") { inclusive = false }
+                                                                        popUpTo(Constants.ROUTE_COURSES) { inclusive = false }
                                                                         launchSingleTop = true
                                                                     }
                                                                 } else {
-                                                                    Toast.makeText(context, msg ?: "Attendance failed", Toast.LENGTH_LONG).show()
+                                                                    Toast.makeText(context, msg ?: context.getString(R.string.attendance_failed), Toast.LENGTH_LONG).show()
                                                                     delay(800)
                                                                     processing = false
                                                                     attendanceEmbeddings.clear()
@@ -376,7 +391,7 @@ fun CameraScreen(
                                                             }
                                                         }
                                                     } else {
-                                                        Toast.makeText(context, "Too far (${dist.toInt()}m)", Toast.LENGTH_LONG).show()
+                                                        Toast.makeText(context, context.getString(R.string.too_far, dist.toInt()), Toast.LENGTH_LONG).show()
                                                         scope.launch {
                                                             processing = false
                                                             attendanceEmbeddings.clear()
@@ -386,7 +401,7 @@ fun CameraScreen(
                                                 }
                                         }
                                     } else {
-                                        Toast.makeText(context, "Face not recognized", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(context, context.getString(R.string.face_not_recognized), Toast.LENGTH_LONG).show()
                                         scope.launch {
                                             delay(800)
                                             processing = false
@@ -410,15 +425,19 @@ fun CameraScreen(
             // waiting state
             else {
                 Text(
-                    text = "Camera: $hasCameraPermission | Location: $hasLocationPermission | Session: $isSessionActive",
+                    text = stringResource(
+                        R.string.waiting_status,
+                        hasCameraPermission.toString(),
+                        hasLocationPermission.toString(),
+                        isSessionActive.toString()
+                    ),
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .padding(top = 16.dp),
                     color = Color.Gray
                 )
 
-                Text(
-                    "Waiting for permissions or professor.",
+                    Text(stringResource(R.string.waiting_for_permissions_or_professor),
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
@@ -437,7 +456,7 @@ fun CameraScreen(
                         CircularProgressIndicator(color = Color.White)
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            "Yüz işleniyor...",
+                            (stringResource(R.string.processing_face)),
                             color = Color.White,
                             style = MaterialTheme.typography.titleMedium
                         )
@@ -447,7 +466,7 @@ fun CameraScreen(
 
             Button(
                 onClick = {
-                    if (mode == "register") cancelRegisterAndGoLogin()
+                    if (mode == CameraMode.REGISTER) cancelRegisterAndGoLogin()
                     else navController.popBackStack()
                 },
                 modifier = Modifier
@@ -455,7 +474,7 @@ fun CameraScreen(
                     .padding(16.dp)
                     .fillMaxWidth()
             ) {
-                Text("Back")
+                Text(stringResource(R.string.back))
             }
         }
     }

@@ -28,7 +28,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.zulal.facerecognition.R
+import com.zulal.facerecognition.data.model.UserRole
+import com.zulal.facerecognition.util.Constants
 import com.zulal.facerecognition.viewmodel.AuthViewModel
+import androidx.compose.ui.res.stringResource
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,7 +41,7 @@ fun LoginScreen(navController: NavController) {
     val vm: AuthViewModel = viewModel()
     val context = LocalContext.current
 
-    var selectedRole by remember { mutableStateOf("") }
+    var selectedRole by remember { mutableStateOf<UserRole?>(null) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
@@ -50,30 +54,28 @@ fun LoginScreen(navController: NavController) {
 
         vm.handleGoogleResult(task) { success, error ->
             if (!success) {
-                message = error ?: "Google Sign-In Failed"
+                message = error ?: context.getString(R.string.google_sign_in_failed)
                 return@handleGoogleResult
             }
 
             val uid = vm.currentUser()?.uid ?: return@handleGoogleResult
 
-            vm.getUserRole(uid) { role ->
-                when (role) {
-                    "Student" -> navController.navigate("courses") {
-                        popUpTo("login") { inclusive = true }
-                    }
+            vm.getUserRole(uid) { roleString ->
+                when (UserRole.from(roleString)) {
+                    UserRole.STUDENT ->
+                        navController.navigate(Constants.ROUTE_COURSES) { popUpTo(Constants.ROUTE_LOGIN) { inclusive = true } }
 
-                    "Professor" -> navController.navigate("adminhome") {
-                        popUpTo("login") { inclusive = true }
-                    }
+                    UserRole.PROFESSOR ->
+                        navController.navigate(Constants.ROUTE_ADMIN_HOME) { popUpTo(Constants.ROUTE_LOGIN) { inclusive = true } }
 
-                    null -> {
-                        // İlk Google girişi Register ekranına yönlendir
-                        navController.navigate("register?google=true")
-                    }
+                    null ->
+                        navController.navigate(Constants.ROUTE_REGISTER)
 
-                    else -> message = "Unknown role"
+                    else -> message = context.getString(R.string.unknown_role)
+
                 }
             }
+
         }
     }
 
@@ -117,7 +119,7 @@ fun LoginScreen(navController: NavController) {
                 ) {
 
                     Text(
-                        text = "LOGIN",
+                        text = stringResource(R.string.login_title),
                         fontSize = 26.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1A1450)
@@ -129,9 +131,10 @@ fun LoginScreen(navController: NavController) {
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        RoleOption("Professor", selectedRole) { selectedRole = it }
+                        RoleOption(UserRole.PROFESSOR, selectedRole) { selectedRole = it }
                         Spacer(modifier = Modifier.width(12.dp))
-                        RoleOption("Student", selectedRole) { selectedRole = it }
+                        RoleOption(UserRole.STUDENT, selectedRole) { selectedRole = it }
+
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
@@ -140,7 +143,7 @@ fun LoginScreen(navController: NavController) {
                         value = email,
                         onValueChange = { email = it },
                         leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-                        label = { Text("Enter your mail") },
+                        label = { Text(stringResource(R.string.enter_your_mail))},
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
@@ -151,7 +154,7 @@ fun LoginScreen(navController: NavController) {
                         value = password,
                         onValueChange = { password = it },
                         leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                        label = { Text("Password") },
+                        label = { Text(stringResource(R.string.password))},
                         visualTransformation = PasswordVisualTransformation(),
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
@@ -162,37 +165,46 @@ fun LoginScreen(navController: NavController) {
                     Button(
                         onClick = {
                             if (email.isBlank() || password.isBlank()) {
-                                message = "Lütfen e-mail ve şifre girin."
+                                message = context.getString(R.string.fill_email_password_tr)
                                 return@Button
                             }
 
                             vm.login(email.trim(), password.trim()) { success, error ->
                                 if (!success) {
 
-                                    message = error ?: "Login failed"
+                                    message = error ?: context.getString(R.string.login_failed)
                                     return@login
                                 }
 
                                 val uid = vm.currentUser()?.uid ?: return@login
 
-                                vm.getUserRole(uid) { role ->
-                                    when (role) {
-                                        "Student" -> navController.navigate("courses") {
-                                            popUpTo("login") { inclusive = true }
+                                vm.getUserRole(uid) { roleString ->
+
+                                    when (UserRole.from(roleString)) {
+
+                                        UserRole.STUDENT -> {
+                                            navController.navigate(Constants.ROUTE_COURSES) {
+                                                popUpTo(Constants.ROUTE_LOGIN) { inclusive = true }
+                                            }
                                         }
 
-                                        "Professor" -> navController.navigate("adminhome") {
-                                            popUpTo("login") { inclusive = true }
+                                        UserRole.PROFESSOR -> {
+                                            navController.navigate(Constants.ROUTE_ADMIN_HOME) {
+                                                popUpTo(Constants.ROUTE_LOGIN) { inclusive = true }
+                                            }
                                         }
 
                                         null -> {
-
-                                            navController.navigate("register")
+                                            navController.navigate(Constants.ROUTE_REGISTER)
                                         }
 
-                                        else -> message = "Unknown role"
+                                        else -> {
+                                            message = context.getString(R.string.unknown_role)
+
+                                        }
                                     }
                                 }
+
                             }
                         },
                         modifier = Modifier
@@ -201,7 +213,8 @@ fun LoginScreen(navController: NavController) {
                         shape = RoundedCornerShape(25.dp),
                         colors = ButtonDefaults.buttonColors(Color(0xFFF8B400))
                     ) {
-                        Text("Login", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.login), color = Color.White, fontWeight = FontWeight.Bold)
+
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
@@ -222,8 +235,8 @@ fun LoginScreen(navController: NavController) {
                         ) {
                             Image(
                                 painter = painterResource(id = R.drawable.google_signin),
-                                contentDescription = "Sign in with Google",
-                                modifier = Modifier
+                                contentDescription = stringResource(R.string.google_sign_in_content_desc),
+                                        modifier = Modifier
                                     .fillMaxHeight()
                                     .padding(horizontal = 8.dp),
                                 contentScale = ContentScale.FillHeight
@@ -235,14 +248,14 @@ fun LoginScreen(navController: NavController) {
 
 
                     Row {
-                        Text("Hesabın yok mu?", color = Color.Gray)
+                        Text(stringResource(R.string.no_account_tr), color = Color.Gray)
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            "Kayıt Ol",
+                            stringResource(R.string.sign_up_tr),
                             color = Color(0xFF4329A6),
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.clickable {
-                                navController.navigate("register")
+                                navController.navigate(Constants.ROUTE_REGISTER)
                             }
                         )
                     }
@@ -258,8 +271,18 @@ fun LoginScreen(navController: NavController) {
 }
 
 @Composable
-fun RoleOption(role: String, selected: String, onSelected: (String) -> Unit) {
-    OutlinedButton(onClick = { onSelected(role) }) {
-        Text(role)
+fun RoleOption(
+    role: UserRole,
+    selected: UserRole?,
+    onSelected: (UserRole) -> Unit
+) {
+    OutlinedButton(
+        onClick = { onSelected(role) },
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = if (selected == role) Color(0xFFE8E8FF) else Color.Transparent
+        )
+    ) {
+        Text(role.value)
     }
 }
+

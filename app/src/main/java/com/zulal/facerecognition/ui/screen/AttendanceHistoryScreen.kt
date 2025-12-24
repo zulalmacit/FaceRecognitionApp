@@ -24,8 +24,11 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.zulal.facerecognition.R
 import com.zulal.facerecognition.util.Constants
-
 import com.google.firebase.firestore.ListenerRegistration
+import com.zulal.facerecognition.data.model.AttendanceStatus
+import androidx.compose.ui.res.stringResource
+
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,7 +49,7 @@ fun AttendanceHistoryScreen(
 
     LaunchedEffect(uid) {
         if (uid == null) {
-            navController.navigate("login") {
+            navController.navigate(Constants.ROUTE_LOGIN) {
                 popUpTo(navController.graph.startDestinationId) { inclusive = true }
                 launchSingleTop = true
                 restoreState = false
@@ -55,7 +58,7 @@ fun AttendanceHistoryScreen(
     }
     if (uid == null) return
 
-    // Kullanıcı adı + kayıtları çek
+  // Kullanıcı adı + kayıtları çek
     LaunchedEffect(courseName, uid) {
         db.collection(Constants.USERS_COLLECTION).document(uid).get()
             .addOnSuccessListener { doc ->
@@ -68,17 +71,19 @@ fun AttendanceHistoryScreen(
             .whereEqualTo("course", courseName)
             .get()
             .addOnSuccessListener { result ->
-                val records = result.documents.mapNotNull { d ->
+                val records = result.documents.map { d ->
                     AttendanceRow(
                         date = d.getString(Constants.FIELD_DATE) ?: "",
                         time = d.getString(Constants.FIELD_TIME) ?: "",
-                        status = d.getString(Constants.FIELD_STATUS) ?: Constants.STATUS_PRESENT
+                        status = AttendanceStatus.from(d.getString(Constants.FIELD_STATUS)) ?: AttendanceStatus.ABSENT
                     )
                 }
+
                 attendanceList = records.sortedByDescending { it.date }
-                totalPresent = records.count { it.status == Constants.STATUS_PRESENT }
-                totalAbsent = records.count { it.status == Constants.STATUS_ABSENT }
+                totalPresent = records.count { it.status == AttendanceStatus.PRESENT }
+                totalAbsent = records.count { it.status == AttendanceStatus.ABSENT }
             }
+
     }
     var reg by remember { mutableStateOf<ListenerRegistration?>(null) }
     DisposableEffect(courseName) {
@@ -99,7 +104,7 @@ fun AttendanceHistoryScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Attendance History")
+                        Text(stringResource(R.string.attendance_history_title))
                         Text(courseName, fontSize = 13.sp, color = Color.Gray)
                     }
                 },
@@ -112,7 +117,7 @@ fun AttendanceHistoryScreen(
                     IconButton(
                         onClick = {
                             auth.signOut()
-                            navController.navigate("login") {
+                            navController.navigate(Constants.ROUTE_LOGIN) {
                                 popUpTo(navController.graph.startDestinationId) { inclusive = true }
                                 launchSingleTop = true
                                 restoreState = false
@@ -121,7 +126,7 @@ fun AttendanceHistoryScreen(
                     ) {
                         Icon(
                             painter = painterResource(id = R.drawable.logout),
-                            contentDescription = "Logout",
+                            contentDescription = stringResource(R.string.logout),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -163,21 +168,21 @@ fun AttendanceHistoryScreen(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                StatBox("Total Present", totalPresent, Color(0xFF4CAF50), Modifier.weight(1f))
-                StatBox("Total Absent", totalAbsent, Color(0xFFE53935), Modifier.weight(1f))
+                StatBox(stringResource(R.string.total_present), totalPresent, Color(0xFF4CAF50), Modifier.weight(1f))
+                StatBox(stringResource(R.string.total_absent), totalAbsent, Color(0xFFE53935), Modifier.weight(1f))
             }
 
             Spacer(Modifier.height(18.dp))
 
             if (attendanceList.isEmpty()) {
-                Text("No records for this course.", color = Color.Gray)
+                Text(stringResource(R.string.no_records_for_course), color = Color.Gray)
             } else {
                 attendanceList.forEach { row ->
                     AttendanceItem(
                         name = studentName,
                         date = row.date,
                         time = row.time,
-                        present = row.status == Constants.STATUS_PRESENT
+                        present = row.status == AttendanceStatus.PRESENT
                     )
                     Spacer(Modifier.height(10.dp))
                 }
@@ -197,8 +202,8 @@ fun AttendanceHistoryScreen(
                 )
             ) {
                 Text(
-                    if (isSessionActive) "ADD ATTENDANCE"
-                    else "Waiting for Teacher to Start",
+                    text = if (isSessionActive) stringResource(R.string.add_attendance)
+                    else stringResource(R.string.waiting_teacher_to_start),
                     fontWeight = FontWeight.Bold,
                     color = if (isSessionActive) Color.White else Color.DarkGray
                 )
@@ -272,5 +277,5 @@ fun AttendanceItem(name: String, date: String, time: String, present: Boolean) {
 data class AttendanceRow(
     val date: String,
     val time: String,
-    val status: String
+    val status: AttendanceStatus
 )

@@ -34,6 +34,8 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.zulal.facerecognition.R
 import com.zulal.facerecognition.util.Constants
+import androidx.compose.ui.res.stringResource
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminHomeScreen(navController: NavController) {
@@ -46,21 +48,20 @@ fun AdminHomeScreen(navController: NavController) {
     var courseList by remember { mutableStateOf<List<String>>(emptyList()) }
 
     LaunchedEffect(user) {
-        if (user == null) {
-            navController.navigate("login") {
+        user?.let { u ->
+            db.collection(Constants.USERS_COLLECTION).document(u.uid)
+                .get()
+                .addOnSuccessListener { doc ->
+                    professorName = doc.getString(Constants.FIELD_NAME) ?: ""
+                    courseList = doc.get(Constants.FIELD_COURSES) as? List<String> ?: emptyList()
+                }
+        } ?: run {
+            navController.navigate(Constants.ROUTE_LOGIN) {
                 popUpTo(navController.graph.startDestinationId) { inclusive = true }
                 launchSingleTop = true
                 restoreState = false
             }
-            return@LaunchedEffect
         }
-
-        db.collection(Constants.USERS_COLLECTION).document(user.uid)
-            .get()
-            .addOnSuccessListener { doc ->
-                professorName = doc.getString(Constants.FIELD_NAME) ?: ""
-                courseList = doc.get(Constants.FIELD_COURSES) as? List<String> ?: emptyList()
-            }
     }
 
     if (user == null) return
@@ -68,11 +69,11 @@ fun AdminHomeScreen(navController: NavController) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Professor Dashboard") },
+                title = { Text(stringResource(R.string.professor_dashboard_title)) },
                 actions = {
                     IconButton(onClick = {
                         auth.signOut()
-                        navController.navigate("login") {
+                        navController.navigate(Constants.ROUTE_LOGIN) {
                             popUpTo(navController.graph.startDestinationId) { inclusive = true }
                             launchSingleTop = true
                             restoreState = false
@@ -80,7 +81,7 @@ fun AdminHomeScreen(navController: NavController) {
                     }) {
                         Icon(
                             painter = painterResource(id = R.drawable.logout),
-                            contentDescription = "Logout",
+                            contentDescription = stringResource(R.string.logout),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -94,7 +95,7 @@ fun AdminHomeScreen(navController: NavController) {
                 .padding(16.dp)
         ) {
             Text(
-                text = "Welcome, $professorName",
+                text = stringResource(R.string.welcome_professor, professorName),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -102,7 +103,7 @@ fun AdminHomeScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Your Courses",
+                text = stringResource(R.string.your_courses),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
@@ -110,7 +111,7 @@ fun AdminHomeScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(8.dp))
 
             if (courseList.isEmpty()) {
-                Text("No courses found.")
+                Text(stringResource(R.string.no_courses_found))
             } else {
                 courseList.forEach { course ->
                     Card(

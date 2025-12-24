@@ -16,6 +16,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.google.firebase.FirebaseApp
 import com.zulal.facerecognition.data.db.FaceDatabase
+import com.zulal.facerecognition.data.model.CameraMode
 import com.zulal.facerecognition.data.repository.RoomFaceRepository
 import com.zulal.facerecognition.ui.screen.AdminHomeScreen
 import com.zulal.facerecognition.ui.screen.AllUsersScreen
@@ -106,7 +107,7 @@ fun AppNavigator() {
                 navController = navController,
                 faceViewModel = faceViewModel,
                 courseName = courseName,
-                mode = mode
+                mode = CameraMode.from(mode)
             )
         }
     }

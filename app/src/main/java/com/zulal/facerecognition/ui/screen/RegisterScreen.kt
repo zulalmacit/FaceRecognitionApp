@@ -16,6 +16,12 @@ import androidx.navigation.NavController
 import com.zulal.facerecognition.viewmodel.AuthViewModel
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.platform.LocalContext
+import com.zulal.facerecognition.data.model.UserRole
+import com.zulal.facerecognition.util.Constants
+import androidx.compose.ui.res.stringResource
+import com.zulal.facerecognition.R
+
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -26,6 +32,8 @@ fun RegisterScreen(
 ) {
 
     val viewModel: AuthViewModel = viewModel()
+    val context = LocalContext.current
+
 
     val courseOptions = listOf(
         "Mobile Programming",
@@ -40,8 +48,7 @@ fun RegisterScreen(
     var studentId by remember { mutableStateOf("") }
     var selectedCourses by remember { mutableStateOf(emptyList<String>()) }
     var showCourseDropdown by remember { mutableStateOf(false) }
-    var selectedRole by remember { mutableStateOf("") }
-
+    var selectedRole by remember { mutableStateOf<UserRole?>(null) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
@@ -58,7 +65,7 @@ fun RegisterScreen(
     }
 
     Scaffold(
-        topBar = { CenterAlignedTopAppBar(title = { Text("Register") }) }
+        topBar = { CenterAlignedTopAppBar(title = { Text(stringResource(R.string.register_title)) }) }
     ) { padding ->
 
         Column(
@@ -71,25 +78,28 @@ fun RegisterScreen(
         ) {
 
             // ROLE SELECT
-            Text("Select Role", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.select_role), style = MaterialTheme.typography.titleMedium)
+
             Spacer(modifier = Modifier.height(8.dp))
 
             Row {
                 Button(
-                    onClick = { selectedRole = "Professor" },
+                    onClick = { selectedRole = UserRole.PROFESSOR },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedRole == "Professor") MaterialTheme.colorScheme.primary else Color.LightGray
+                        containerColor = if (selectedRole == UserRole.PROFESSOR)
+                            MaterialTheme.colorScheme.primary else Color.LightGray
                     )
-                ) { Text("Professor") }
+                ) { Text(UserRole.PROFESSOR.value) }
 
                 Spacer(modifier = Modifier.width(12.dp))
 
                 Button(
-                    onClick = { selectedRole = "Student" },
+                    onClick = { selectedRole = UserRole.STUDENT },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedRole == "Student") MaterialTheme.colorScheme.primary else Color.LightGray
+                        containerColor = if (selectedRole == UserRole.STUDENT)
+                            MaterialTheme.colorScheme.primary else Color.LightGray
                     )
-                ) { Text("Student") }
+                ) { Text(UserRole.STUDENT.value) }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -101,7 +111,7 @@ fun RegisterScreen(
                     if (!isGoogleUser) email = it
                 },
                 readOnly = isGoogleUser,
-                label = { Text("Email") },
+                label = { Text(stringResource(R.string.email)) },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -111,7 +121,7 @@ fun RegisterScreen(
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("Password (min 6 chars)") },
+                    label = { Text(stringResource(R.string.password_min_6)) },
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -122,30 +132,30 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = userName,
                 onValueChange = { userName = it },
-                label = { Text("Enter your name") },
-                modifier = Modifier.fillMaxWidth()
+                label = { Text(stringResource(R.string.enter_name)) },
+                        modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
 
-            if (selectedRole == "Student") {
+            if (selectedRole == UserRole.STUDENT){
                 OutlinedTextField(
                     value = studentId,
                     onValueChange = { studentId = it },
-                    label = { Text("Enter your student id") },
+                    label = { Text(stringResource(R.string.enter_student_id)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            Text("Select Courses", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.select_courses), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
 
             Button(
                 onClick = { showCourseDropdown = true },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Choose Courses") }
+            ) { Text(stringResource(R.string.choose_courses)) }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -170,13 +180,13 @@ fun RegisterScreen(
                 onClick = {
                     val nameT = userName.trim()
                     val idT = studentId.trim()
-                    val roleT = selectedRole.trim()
+                    val roleT = selectedRole
                     val courseList = selectedCourses
 
-                    if (nameT.isEmpty() || roleT.isEmpty() || courseList.isEmpty()
-                        || (roleT == "Student" && idT.isEmpty())
+                    if (nameT.isEmpty() || roleT == null || courseList.isEmpty()
+                        || (roleT == UserRole.STUDENT && idT.isEmpty())
                     ) {
-                        message = "Please fill all fields correctly."
+                        message = context.getString(R.string.fill_all_fields)
                         return@Button
                     }
 
@@ -188,13 +198,13 @@ fun RegisterScreen(
                             name = nameT,
                             studentId = idT,
                             courses = courseList,
-                            role = roleT
+                            role = roleT.value
                         ) { ok, err ->
                             isLoading = false
                             if (ok) {
                                 navigateAfterRegister(navController, roleT)
                             } else {
-                                message = err ?: "Google profile save error"
+                                message = err ?: context.getString(R.string.google_profile_save_error)
                             }
                         }
 
@@ -206,13 +216,13 @@ fun RegisterScreen(
                             name = nameT,
                             studentId = idT,
                             courses = courseList,
-                            role = roleT
+                            role = roleT.value
                         ) { ok, err ->
                             isLoading = false
                             if (ok) {
                                 navigateAfterRegister(navController, roleT)
                             } else {
-                                message = err ?: "Registration failed"
+                                message = err ?: context.getString(R.string.registration_failed)
                             }
                         }
                     }
@@ -222,8 +232,7 @@ fun RegisterScreen(
                     .fillMaxWidth()
                     .height(50.dp)
             ) {
-                Text(if (isLoading) "Saving..." else "Continue")
-            }
+                Text(if (isLoading) stringResource(R.string.saving) else stringResource(R.string.continue_text))            }
 
             if (message.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
@@ -237,10 +246,10 @@ fun RegisterScreen(
                 onDismissRequest = { showCourseDropdown = false },
                 confirmButton = {
                     TextButton(onClick = { showCourseDropdown = false }) {
-                        Text("Done")
+                        Text(stringResource(R.string.done))
                     }
                 },
-                title = { Text("Select Courses") },
+                title = { Text(stringResource(R.string.select_courses)) },
                 text = {
                     Column(
                         modifier = Modifier
@@ -279,18 +288,18 @@ fun RegisterScreen(
     }
 }
 
-fun navigateAfterRegister(navController: NavController, role: String) {
-    if (role == "Professor") {
-        navController.navigate("adminhome") {
-            popUpTo("register") { inclusive = true }
+fun navigateAfterRegister(navController: NavController, role: UserRole) {
+    if (role == UserRole.PROFESSOR) {
+        navController.navigate(Constants.ROUTE_ADMIN_HOME) {
+            popUpTo(Constants.ROUTE_REGISTER) { inclusive = true }
             launchSingleTop = true
         }
     } else {
         navController.navigate("camera/register/_") {
-            popUpTo("register") { inclusive = true }
+            popUpTo(Constants.ROUTE_REGISTER) { inclusive = true }
             launchSingleTop = true
         }
-
     }
 }
+
 

@@ -6,11 +6,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.zulal.facerecognition.R
+import com.zulal.facerecognition.data.model.UserRole
 import com.zulal.facerecognition.util.Constants
 import kotlinx.coroutines.delay
 
@@ -38,10 +40,11 @@ fun CoursesScreen(navController: NavController) {
             .document(userId)
             .get()
             .addOnSuccessListener { doc ->
-                val role = doc.getString(Constants.FIELD_ROLE) ?: ""
-                val verified = doc.getBoolean("faceVerified") == true
 
-                if (role == "Student" && !verified) {
+                val role = UserRole.from(doc.getString(Constants.FIELD_ROLE))
+                val verified = doc.getBoolean(Constants.FIELD_FACE_VERIFIED) == true
+
+                if (role == UserRole.STUDENT && !verified) {
                     showFaceWarning = true
                     navigateToCamera = true
                     loading = false
@@ -65,7 +68,7 @@ fun CoursesScreen(navController: NavController) {
         if (navigateToCamera) {
             delay(1500)
             navController.navigate("camera/register/_") {
-                popUpTo("courses") { inclusive = true }
+                popUpTo(Constants.ROUTE_COURSES) { inclusive = true }
                 launchSingleTop = true
             }
         }
@@ -74,17 +77,17 @@ fun CoursesScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Your Courses") },
+                title = { Text(stringResource(R.string.your_courses)) },
                 actions = {
                     IconButton(onClick = {
                         auth.signOut()
-                        navController.navigate("login") {
+                        navController.navigate(Constants.ROUTE_LOGIN) {
                             popUpTo(0) { inclusive = true }
                         }
                     }) {
                         Icon(
                             painter = painterResource(id = R.drawable.logout),
-                            contentDescription = "Logout",
+                            contentDescription = stringResource(R.string.logout),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -109,13 +112,11 @@ fun CoursesScreen(navController: NavController) {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     if (courses.isEmpty()) {
-                        Text("No courses found.")
+                        Text(stringResource(R.string.no_courses_found))
                     } else {
                         courses.forEach { course ->
                             Button(
-                                onClick = {
-                                    navController.navigate("attendance/$course")
-                                },
+                                onClick = { navController.navigate("attendance/$course") },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 6.dp)
@@ -133,13 +134,8 @@ fun CoursesScreen(navController: NavController) {
         AlertDialog(
             onDismissRequest = {},
             confirmButton = {},
-            title = { Text("Yüz Kaydı Gerekli") },
-            text = {
-                Text(
-                    "Yüzünüz henüz kaydedilmemiştir.\n" +
-                            "Devam edebilmek için önce yüz verilerinizi kaydetmeniz gerekmektedir."
-                )
-            }
+            title = { Text(stringResource(R.string.face_required_title)) },
+            text = { Text(stringResource(R.string.face_required_message)) }
         )
     }
 }
