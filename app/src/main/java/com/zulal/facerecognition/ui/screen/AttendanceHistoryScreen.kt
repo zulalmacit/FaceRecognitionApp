@@ -65,6 +65,8 @@ fun AttendanceHistoryScreen(
                 studentName = doc.getString(Constants.FIELD_NAME) ?: ""
             }
 
+        
+
         db.collection(Constants.ATTENDANCE_COLLECTION)
             .document(uid)
             .collection("records")
