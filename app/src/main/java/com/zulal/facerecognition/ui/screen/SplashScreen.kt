@@ -12,8 +12,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.zulal.facerecognition.R
+import com.zulal.facerecognition.data.model.UserRole
 import com.zulal.facerecognition.viewmodel.AuthViewModel
-import kotlinx.coroutines.delay
 @Composable
 fun SplashScreen(navController: NavController) {
     val authViewModel: AuthViewModel = viewModel()
@@ -21,7 +21,7 @@ fun SplashScreen(navController: NavController) {
     LaunchedEffect(Unit) {
         val user = authViewModel.currentUser()
 
-        // Kullanıcı yok -> login ekranına
+        // Kullanıcı yok  login ekranına
         if (user == null) {
             navController.navigate("login") {
                 popUpTo("splash") { inclusive = true }
@@ -32,25 +32,29 @@ fun SplashScreen(navController: NavController) {
         val uid = user.uid
 
         // Firebase'den rolü çek
-        authViewModel.getUserRole(uid) { role ->
-            when (role) {
-                "Student" -> {
+        authViewModel.getUserRole(uid) { roleString ->
+
+            when (UserRole.from(roleString)) {
+
+                UserRole.STUDENT -> {
                     navController.navigate("courses") {
                         popUpTo("splash") { inclusive = true }
                     }
                 }
-                "Professor" -> {
+
+                UserRole.PROFESSOR -> {
                     navController.navigate("adminhome") {
                         popUpTo("splash") { inclusive = true }
                     }
-                                  }
+                }
+
                 null -> {
-                    // Hesap var ama profil yok -> register
+                    // Hesap var ama profil yok
                     navController.navigate("register") {
                         popUpTo("splash") { inclusive = true }
                     }
-
                 }
+
                 else -> {
                     // Güvenlik fallback
                     navController.navigate("login") {
@@ -59,6 +63,7 @@ fun SplashScreen(navController: NavController) {
                 }
             }
         }
+
     }
 
     Box(

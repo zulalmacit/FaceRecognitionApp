@@ -5,11 +5,10 @@ import android.graphics.*
 import android.util.Log
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import androidx.annotation.OptIn
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -17,6 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceDetector
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.zulal.facerecognition.ui.graphic.FaceGraphic
 import com.zulal.facerecognition.ui.graphic.GraphicOverlay
@@ -54,7 +54,6 @@ fun CameraPreview(
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
-            // Container: Preview + Overlay
             val container = FrameLayout(ctx).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -62,7 +61,6 @@ fun CameraPreview(
                 )
             }
 
-            // 1) Kamera önizleme alanı
             val previewView = PreviewView(ctx).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -71,7 +69,6 @@ fun CameraPreview(
             }
             container.addView(previewView)
 
-            // 2) Çizim alanı (yüz kutusu + tarama kutusu)
             val graphicOverlay = GraphicOverlay(ctx, null).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -96,152 +93,157 @@ fun CameraPreview(
             val previewView = previewViewRef ?: return@LaunchedEffect
             val overlay = overlayRef ?: return@LaunchedEffect
 
-                    val preview = Preview.Builder().build().also {
-                        it.setSurfaceProvider(previewView.surfaceProvider)
-                    }
+            val preview = Preview.Builder().build().also {
+                it.setSurfaceProvider(previewView.surfaceProvider)
+            }
 
-                    val analysisUseCase = ImageAnalysis.Builder()
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .setTargetResolution(android.util.Size(640, 480))
-                        .build()
+            val analysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .setTargetResolution(android.util.Size(640, 480))
+                .build()
 
-                    val options = FaceDetectorOptions.Builder()
-                        .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-                        .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
-                        .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
-                        .build()
+            val options = FaceDetectorOptions.Builder()
+                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
+                .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
+                .build()
 
             val faceDetector = FaceDetection.getClient(options)
             detector = faceDetector
             analysisUseCase = analysis
 
-                    val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
-                    val lensFacing = CameraSelector.LENS_FACING_FRONT
+            val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+            val lensFacing = CameraSelector.LENS_FACING_FRONT
 
-                    analysisUseCase.setAnalyzer(
-                        ContextCompat.getMainExecutor(ctx)
-                    ) { imageProxy ->
-                        processImageProxy(
-                            detector = detector,
-                            imageProxy = imageProxy,
-                            faceViewModel = faceViewModel,
-                            onFaceEmbeddingDetected = onFaceEmbeddingDetected,
-                            overlay = graphicOverlay,
-                            cameraLensFacing = lensFacing
-                        )
-                    }
+            analysis.setAnalyzer(analysisExecutor) { imageProxy ->
+                processImageProxy(
+                    detector = faceDetector,
+                    imageProxy = imageProxy,
+                    faceViewModel = faceViewModel,
+                    onFaceEmbeddingDetected = { arr -> onFaceEmbeddingDetectedState(arr) },
+                    overlay = overlay,
+                    cameraLensFacing = lensFacing,
+                    mainExecutor = mainExecutor
+                )
+            }
 
-                    cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner,
-                        cameraSelector,
-                        preview,
-                        analysisUseCase
-                    )
-                } catch (exc: Exception) {
-                    Log.e("CameraPreview", "Camera yüklenemedi", exc)
-                }
-            }, ContextCompat.getMainExecutor(ctx))
-
-            container
+            provider.unbindAll()
+            provider.bindToLifecycle(
+                lifecycleOwner,
+                cameraSelector,
+                preview,
+                analysis
+            )
+        } catch (e: Exception) {
+            Log.e("CameraPreview", "Camera bind failed", e)
         }
-    )
+    }
+
+    //ekran kapanınca her şeyi kapat
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                analysisUseCase?.clearAnalyzer()
+            } catch (_: Exception) { }
+
+            try {
+                cameraProvider?.unbindAll()
+            } catch (_: Exception) { }
+
+            try {
+                detector?.close()
+            } catch (_: Exception) { }
+
+            try {
+                analysisExecutor.shutdownNow()
+            } catch (_: Exception) { }
+
+            analysisUseCase = null
+            cameraProvider = null
+            detector = null
+        }
+    }
 }
 
-@OptIn(androidx.camera.core.ExperimentalGetImage::class)
+@androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
 private fun processImageProxy(
-    detector: com.google.mlkit.vision.face.FaceDetector,
+    detector: FaceDetector,
     imageProxy: ImageProxy,
     faceViewModel: FaceViewModel,
     onFaceEmbeddingDetected: (FloatArray) -> Unit,
     overlay: GraphicOverlay,
-    cameraLensFacing: Int
+    cameraLensFacing: Int,
+    mainExecutor: java.util.concurrent.Executor
 ) {
-    overlay.clear()
-
     val mediaImage = imageProxy.image
-    if (mediaImage != null) {
-        val rotationDegrees = imageProxy.imageInfo.rotationDegrees
-        val image = InputImage.fromMediaImage(mediaImage, rotationDegrees)
-
-        // Overlay’e kamera boyutu, lens bilgisini verir
-        overlay.setCameraInfo(image.width, image.height, cameraLensFacing)
-
-        detector.process(image)
-            .addOnSuccessListener { faces ->
-
-                // 1) Ortada tarama kutusu
-                val centerBox = android.graphics.RectF(
-                    image.width * 0.2f,   // left
-                    image.height * 0.2f,  // top
-                    image.width * 0.8f,   // right
-                    image.height * 0.8f   // bottom
-                )
-                // Bu kutuyu overlay’de göster
-                overlay.add(GuideRectGraphic(overlay, centerBox))
-
-                if (faces.isEmpty()) {
-                    return@addOnSuccessListener
-                }
-
-                //  2) Tespit edilen yüzleri overlay’e çiz
-                faces.forEach { face ->
-                    overlay.add(FaceGraphic(overlay, face))
-                }
-
-                //  3) Sadece ortadaki kutunun içinde kalan tek yüzü kullan
-                val facesInCenter = faces.filter { face ->
-                    val box = face.boundingBox
-                    val cx = box.exactCenterX()
-                    val cy = box.exactCenterY()
-                    cx >= centerBox.left && cx <= centerBox.right &&
-                            cy >= centerBox.top && cy <= centerBox.bottom
-                }
-
-                // Eğer ortada 1 tane yüz yoksa embedding üretme
-                if (facesInCenter.size != 1) {
-                    Log.d("FaceDetection", "Merkez bölgedeki yüz sayısı: ${facesInCenter.size}")
-                    return@addOnSuccessListener
-                }
-
-                val face = facesInCenter[0]
-
-                // Yüzü kırp ve FaceNet’e uygun hale getir!!!!
-                val bitmap = imageProxy.toBitmap() ?: return@addOnSuccessListener
-                val box = face.boundingBox
-
-                val cropped = try {
-                    Bitmap.createBitmap(
-                        bitmap,
-                        box.left.coerceAtLeast(0),
-                        box.top.coerceAtLeast(0),
-                        box.width().coerceAtMost(bitmap.width - box.left),
-                        box.height().coerceAtMost(bitmap.height - box.top)
-                    )
-                } catch (e: Exception) {
-                    Log.e("FaceCrop", "Bitmap kırpma hatası: ${e.message}")
-                    return@addOnSuccessListener
-                }
-
-                val inputArray = bitmapToFloatArray(cropped)
-
-                faceViewModel.updateLastEmbedding(inputArray)
-                onFaceEmbeddingDetected(inputArray)
-
-                Log.d("FaceEmbedding", "Merkezdeki yüz için embedding üretildi")
-            }
-            .addOnFailureListener { e ->
-                Log.e("FaceDetection", "Face detection failed", e)
-            }
-            .addOnCompleteListener {
-                imageProxy.close()
-            }
-    } else {
+    if (mediaImage == null) {
         imageProxy.close()
+        return
     }
+
+    val rotationDegrees = imageProxy.imageInfo.rotationDegrees
+    val image = InputImage.fromMediaImage(mediaImage, rotationDegrees)
+
+    // ML Kit task listener’larını ana threade alalım (overlay çizimleri için)
+    detector.process(image)
+        .addOnSuccessListener(mainExecutor) { faces ->
+            overlay.clear()
+
+            overlay.setCameraInfo(image.width, image.height, cameraLensFacing)
+
+            val centerBox = android.graphics.RectF(
+                image.width * 0.2f,
+                image.height * 0.2f,
+                image.width * 0.8f,
+                image.height * 0.8f
+            )
+            overlay.add(GuideRectGraphic(overlay, centerBox))
+
+            if (faces.isEmpty()) return@addOnSuccessListener
+
+            faces.forEach { face -> overlay.add(FaceGraphic(overlay, face)) }
+
+            val facesInCenter = faces.filter { face ->
+                val box = face.boundingBox
+                val cx = box.exactCenterX()
+                val cy = box.exactCenterY()
+                cx >= centerBox.left && cx <= centerBox.right &&
+                        cy >= centerBox.top && cy <= centerBox.bottom
+            }
+
+            if (facesInCenter.size != 1) return@addOnSuccessListener
+
+            val face = facesInCenter[0]
+            val box = face.boundingBox
+
+            val bitmap = imageProxy.toBitmap() ?: return@addOnSuccessListener
+
+            val cropped = try {
+                Bitmap.createBitmap(
+                    bitmap,
+                    box.left.coerceAtLeast(0),
+                    box.top.coerceAtLeast(0),
+                    box.width().coerceAtMost(bitmap.width - box.left),
+                    box.height().coerceAtMost(bitmap.height - box.top)
+                )
+            } catch (e: Exception) {
+                Log.e("FaceCrop", "Bitmap crop error: ${e.message}")
+                return@addOnSuccessListener
+            }
+
+            val inputArray = bitmapToFloatArray(cropped)
+
+            faceViewModel.updateLastEmbedding(inputArray)
+            onFaceEmbeddingDetected(inputArray)
+        }
+        .addOnFailureListener { e ->
+            Log.e("FaceDetection", "Face detection failed", e)
+        }
+        .addOnCompleteListener {
+            imageProxy.close()
+        }
 }
 
-// Bitmap to FloatArray (FaceNet girişi)
 private fun bitmapToFloatArray(bitmap: Bitmap): FloatArray {
     val inputImage = Bitmap.createScaledBitmap(bitmap, 160, 160, true)
     val floatArray = FloatArray(160 * 160 * 3)
@@ -250,12 +252,11 @@ private fun bitmapToFloatArray(bitmap: Bitmap): FloatArray {
     for (y in 0 until 160) {
         for (x in 0 until 160) {
             val pixel = inputImage.getPixel(x, y)
-            floatArray[index++] = ((pixel shr 16 and 0xFF) - 127.5f) / 128f // R
-            floatArray[index++] = ((pixel shr 8 and 0xFF) - 127.5f) / 128f  // G
-            floatArray[index++] = ((pixel and 0xFF) - 127.5f) / 128f        // B
+            floatArray[index++] = ((pixel shr 16 and 0xFF) - 127.5f) / 128f
+            floatArray[index++] = ((pixel shr 8 and 0xFF) - 127.5f) / 128f
+            floatArray[index++] = ((pixel and 0xFF) - 127.5f) / 128f
         }
     }
-
     return floatArray
 }
 
@@ -277,19 +278,14 @@ private fun ImageProxy.toBitmap(): Bitmap? {
     vBuffer.get(nv21, ySize, vSize)
     uBuffer.get(nv21, ySize + vSize, uSize)
 
-    val yuvImage = YuvImage(
-        nv21, ImageFormat.NV21, this.width, this.height, null
-    )
+    val yuvImage = YuvImage(nv21, ImageFormat.NV21, this.width, this.height, null)
 
     val out = ByteArrayOutputStream()
-    try {
-        yuvImage.compressToJpeg(
-            Rect(0, 0, yuvImage.width, yuvImage.height), 75, out
-        )
+    return try {
+        yuvImage.compressToJpeg(Rect(0, 0, yuvImage.width, yuvImage.height), 75, out)
         val imageBytes = out.toByteArray()
-        return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+        BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
     } finally {
         out.close()
     }
 }
-

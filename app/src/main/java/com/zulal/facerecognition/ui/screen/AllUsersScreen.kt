@@ -12,18 +12,15 @@ import androidx.navigation.NavController
 import com.zulal.facerecognition.data.model.FaceEntity
 import com.zulal.facerecognition.viewmodel.FaceViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)//Material3 experimental API'sini kullan, uyarı verme" demek.
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AllUsersScreen(
     navController: NavController,
     faceViewModel: FaceViewModel
 ) {
-    //firebaseteki kullanıcıları listelemek için
     val users by faceViewModel.userList.collectAsState()
-    // Room’daki kullanıcıları listelemek için state olarak uı güncellendikçe hafızada kalır başta boş liste
     var localUsers by remember { mutableStateOf<List<String>>(emptyList())}
 
-    // VMden tüm yüzleri çekerek state'e kaydediyor.
     LaunchedEffect(Unit) {
         //firestoredan çeker
         faceViewModel.fetchUsersFromFirestore()
